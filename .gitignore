@@ -89,6 +89,12 @@ web_modules/
 .env.production.local
 .env.local
 
+# Local application credentials and runtime configuration
+config.json
+llm/
+tts/
+seedance.json
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

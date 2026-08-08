@@ -1,6 +1,6 @@
 {
-  "name": "bailongma",
-  "productName": "Bailongma",
+  "name": "bailongmamy",
+  "productName": "BaiLONGMAMy",
   "version": "2.1.515",
   "description": "A continuously running digital consciousness framework",
   "type": "module",
@@ -8,17 +8,30 @@
   "author": {
     "name": "xiaoyuanda666-ship-it"
   },
+  "contributors": [
+    {
+      "name": "MrYouYouSBK"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrYouYouSBK/BaiLONGMAMy.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "chcp 65001 >nul && electron .",
+    "start": "electron .",
     "start:lan": "powershell -ExecutionPolicy Bypass -File scripts/start-lan.ps1 app",
-    "start:backend": "chcp 65001 >nul && node --env-file=.env src/index.js",
+    "start:backend": "node --env-file-if-exists=.env src/index.js",
     "start:backend:lan": "powershell -ExecutionPolicy Bypass -File scripts/start-lan.ps1 backend",
-    "dev": "chcp 65001 >nul && node --env-file=.env --watch src/index.js",
+    "dev": "node --env-file-if-exists=.env --watch src/index.js",
     "build": "node scripts/prebuild-clean.mjs && node scripts/build-macos-speech.mjs && node ./node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3 -v 33.4.11 && node ./node_modules/electron-builder/cli.js",
     "build:win": "node scripts/prebuild-clean.mjs && node scripts/build-macos-speech.mjs && node ./node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3 -v 33.4.11 && node ./node_modules/electron-builder/cli.js --win",
     "build:mac": "node scripts/build-mac.mjs",
     "build:mac:x64": "node scripts/build-mac.mjs x64",
     "build:mac:arm64": "node scripts/build-mac.mjs arm64",
+    "check:release-safety": "node scripts/check-release-safety.mjs",
     "publish": "node scripts/prebuild-clean.mjs && node scripts/build-macos-speech.mjs && node ./node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3 -v 33.4.11 && node ./node_modules/electron-builder/cli.js --publish always",
     "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "test:rule-context": "electron ./src/test-rule-context.js",
@@ -66,8 +79,8 @@
     "playwright": "^1.59.1"
   },
   "build": {
-    "appId": "com.xiaoyuanda.bailongma",
-    "productName": "Bailongma",
+    "appId": "com.mryouyousbk.bailongmamy",
+    "productName": "BaiLONGMAMy",
     "artifactName": "${productName}-Setup-${version}.${ext}",
     "npmRebuild": false,
     "asar": {
@@ -168,8 +181,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "xiaoyuanda666-ship-it",
-        "repo": "BaiLongma",
+        "owner": "MrYouYouSBK",
+        "repo": "BaiLONGMAMy",
         "releaseType": "release"
       }
     ]
