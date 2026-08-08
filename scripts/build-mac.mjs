@@ -51,5 +51,12 @@ for (const arch of archs) {
   ]);
 
   console.log(`[build:mac] packaging ${arch} DMG`);
-  run('node', ['./node_modules/electron-builder/cli.js', '--mac', 'dmg', `--${arch}`]);
+  run('node', [
+    './node_modules/electron-builder/cli.js',
+    '--mac',
+    'dmg',
+    `--${arch}`,
+    '--publish',
+    'never',
+  ]);
 }
