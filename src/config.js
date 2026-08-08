@@ -11,6 +11,7 @@ export const QWEN_PROVIDER = 'qwen'
 export const MOONSHOT_PROVIDER = 'moonshot'
 export const ZHIPU_PROVIDER = 'zhipu'
 export const MIMO_PROVIDER = 'mimo'
+export const OFFLINE_PROVIDER = 'offline'
 
 export const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro'
 export const DEFAULT_MINIMAX_MODEL = 'MiniMax-M2.7'
@@ -19,6 +20,15 @@ export const DEFAULT_QWEN_MODEL = 'qwen-turbo'
 export const DEFAULT_MOONSHOT_MODEL = 'kimi-k2.6'
 export const DEFAULT_ZHIPU_MODEL = 'glm-5.1'
 export const DEFAULT_MIMO_MODEL = 'mimo-v2.5-pro'
+export const DEFAULT_OFFLINE_MODEL = 'offline-lite'
+
+export const OFFLINE_MODELS = [
+  {
+    id: DEFAULT_OFFLINE_MODEL,
+    label: 'Offline Lite（零配置基础模式）',
+    deprecated: false,
+  },
+]
 
 export const DEEPSEEK_MODELS = [
   {
@@ -338,6 +348,14 @@ export const MIMO_MODELS = [
 ]
 
 const PROVIDER_CONFIG = {
+  [OFFLINE_PROVIDER]: {
+    label: 'Offline Lite（无需 Key）',
+    baseURL: null,
+    envVar: null,
+    models: OFFLINE_MODELS,
+    defaultModel: DEFAULT_OFFLINE_MODEL,
+    noApiKey: true,
+  },
   [DEEPSEEK_PROVIDER]: {
     label: 'DeepSeek',
     baseURL: 'https://api.deepseek.com',
@@ -459,7 +477,7 @@ function isThinkingEnabledForModel(model) {
 }
 
 function getProvidersForAutoDetect() {
-  return Object.entries(PROVIDER_CONFIG)
+  return Object.entries(PROVIDER_CONFIG).filter(([, pConfig]) => !pConfig.noApiKey)
 }
 
 function getProviderErrorMessage(err) {
@@ -592,6 +610,14 @@ function writeLlmProviderConfig(provider, record) {
 function resolveLlmRecord(raw, fallbackProvider) {
   if (!raw || typeof raw !== 'object') return null
   const provider = resolveProviderId(raw.provider || fallbackProvider)
+  if (provider === OFFLINE_PROVIDER) {
+    return {
+      provider,
+      apiKey: 'offline',
+      model: normalizeModel(raw.model, provider),
+      baseURL: undefined,
+    }
+  }
   if (provider === 'custom') {
     if (typeof raw.baseURL !== 'string' || !raw.baseURL) return null
     if (typeof raw.model !== 'string' || !raw.model) return null
@@ -682,6 +708,14 @@ function writeActiveLlmProvider(provider) {
 
 function persistLlmProviderConfig(record) {
   const provider = resolveProviderId(record?.provider)
+  if (provider === OFFLINE_PROVIDER) {
+    writeLlmProviderConfig(provider, {
+      provider,
+      model: normalizeModel(record.model, provider),
+      activatedAt: record.activatedAt || new Date().toISOString(),
+    })
+    return
+  }
   if (provider === 'custom') {
     writeLlmProviderConfig('custom', {
       provider: 'custom',
@@ -862,6 +896,7 @@ function loadFromEnv() {
   }
   for (const [provider, pConfig] of Object.entries(PROVIDER_CONFIG)) {
     if (provider === DEEPSEEK_PROVIDER || provider === MINIMAX_PROVIDER) continue
+    if (!pConfig.envVar) continue
     const key = process.env[pConfig.envVar]
     if (key) {
       return {
@@ -875,6 +910,14 @@ function loadFromEnv() {
 }
 
 function applyConfig(provider, apiKey, model, customBaseURL) {
+  if (provider === OFFLINE_PROVIDER) {
+    config.provider = OFFLINE_PROVIDER
+    config.model = normalizeModel(model, OFFLINE_PROVIDER)
+    config.apiKey = 'offline'
+    config.baseURL = null
+    config.needsActivation = false
+    return
+  }
   if (provider === 'custom') {
     config.provider = 'custom'
     config.model = String(model || '').trim()
@@ -1040,6 +1083,16 @@ if (storedLlm) {
 export async function prepareActivation({ provider = AUTO_PROVIDER, apiKey, model, baseURL }) {
   const p = String(provider || AUTO_PROVIDER).toLowerCase()
 
+  if (p === OFFLINE_PROVIDER) {
+    return {
+      provider: OFFLINE_PROVIDER,
+      apiKey: 'offline',
+      model: normalizeModel(model, OFFLINE_PROVIDER),
+      baseURL: undefined,
+      models: OFFLINE_MODELS,
+    }
+  }
+
   if (p === 'custom') {
     const normalizedBaseURL = String(baseURL || '').trim()
     if (!normalizedBaseURL) throw new Error('Custom endpoint requires a Base URL')
@@ -1120,6 +1173,22 @@ export async function prepareActivation({ provider = AUTO_PROVIDER, apiKey, mode
 
 export function commitPreparedActivation(prepared) {
   const p = String(prepared?.provider || '').toLowerCase()
+
+  if (p === OFFLINE_PROVIDER) {
+    const normalizedModel = normalizeModel(prepared.model, OFFLINE_PROVIDER)
+    applyConfig(OFFLINE_PROVIDER, 'offline', normalizedModel)
+    persistLlmProviderConfig({
+      provider: OFFLINE_PROVIDER,
+      model: normalizedModel,
+      activatedAt: new Date().toISOString(),
+    })
+    writeActiveLlmProvider(OFFLINE_PROVIDER)
+    return {
+      provider: OFFLINE_PROVIDER,
+      model: normalizedModel,
+      models: OFFLINE_MODELS,
+    }
+  }
 
   if (p === 'custom') {
     const normalizedBaseURL = String(prepared.baseURL || '').trim()
@@ -1300,6 +1369,10 @@ export function switchProviderConfig({ provider, model } = {}) {
 export async function saveLLMSettings({ provider = AUTO_PROVIDER, apiKey, model, baseURL } = {}) {
   const p = String(provider || AUTO_PROVIDER).toLowerCase()
   const trimmedKey = String(apiKey || '').trim()
+
+  if (p === OFFLINE_PROVIDER) {
+    return commitPreparedActivation(await prepareActivation({ provider: OFFLINE_PROVIDER, model }))
+  }
 
   if (p === 'custom') {
     const stored = resolveStoredLlmForProvider('custom')

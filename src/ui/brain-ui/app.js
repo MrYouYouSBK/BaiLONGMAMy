@@ -2572,14 +2572,26 @@ function initTTSSettings() {
     const customSection = document.getElementById("settings-custom-llm-section");
     const modelRow = document.getElementById("settings-model-row");
     const officialCustomModelRow = document.getElementById("settings-official-custom-model-row");
+    const llmKeyRow = document.getElementById("settings-llm-key-row");
     if (provider === "auto") {
       if (customSection) customSection.style.display = "none";
       if (modelRow) modelRow.style.display = "none";
       if (officialCustomModelRow) officialCustomModelRow.style.display = "none";
+      if (llmKeyRow) llmKeyRow.style.display = "";
       if (llmKeyInput) llmKeyInput.value = "";
       setLlmKeyVisible(false);
       return;
     }
+    if (provider === "offline") {
+      if (customSection) customSection.style.display = "none";
+      if (modelRow) modelRow.style.display = "none";
+      if (officialCustomModelRow) officialCustomModelRow.style.display = "none";
+      if (llmKeyRow) llmKeyRow.style.display = "none";
+      if (llmKeyInput) llmKeyInput.value = "";
+      setLlmKeyVisible(false);
+      return;
+    }
+    if (llmKeyRow) llmKeyRow.style.display = "";
     if (provider === "custom") {
       if (customSection) customSection.style.display = "";
       if (modelRow) modelRow.style.display = "none";
@@ -3422,7 +3434,9 @@ function initTTSSettings() {
     try {
       const selectedCfg = cachedProviders?.[provider] || {};
       const body = { provider };
-      if (provider === "custom") {
+      if (provider === "offline") {
+        body.model = "offline-lite";
+      } else if (provider === "custom") {
         body.baseURL = document.getElementById("settings-custom-baseurl")?.value?.trim();
         body.model = document.getElementById("settings-custom-model")?.value?.trim();
         if (!body.baseURL || !body.model) {
@@ -3459,7 +3473,7 @@ function initTTSSettings() {
       });
       const data = await res.json();
       if (data.ok) {
-        showFeedback(llmFeedback, "已保存");
+        showFeedback(llmFeedback, provider === "offline" ? "Offline Lite 已启用" : "已保存");
         loadSettings();
       } else {
         showFeedback(llmFeedback, data.error || "保存失败", true);

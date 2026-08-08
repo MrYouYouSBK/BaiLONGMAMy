@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
-import { config, MIMO_PROVIDER, ZHIPU_PROVIDER, getProviderModelFallbacks, shouldOmitSamplingForProviderModel, shouldSendThinkingDisabledForProviderModel, shouldUseMaxCompletionTokensForProviderModel, switchModel } from './config.js'
+import { config, MIMO_PROVIDER, OFFLINE_PROVIDER, ZHIPU_PROVIDER, getProviderModelFallbacks, shouldOmitSamplingForProviderModel, shouldSendThinkingDisabledForProviderModel, shouldUseMaxCompletionTokensForProviderModel, switchModel } from './config.js'
+import { createOfflineStreamResult, isOfflineFallbackError } from './offline-assistant.js'
 import { executeTool } from './capabilities/executor.js'
 import { getToolSchemas } from './capabilities/schemas.js'
 import { recordUsage, shouldThrottle } from './quota.js'
@@ -932,9 +933,18 @@ export async function callLLM({ systemPrompt, message, messages: inputMessages =
         { role: 'user', content: message }
       ]
 
+  let useOfflineStream = config.provider === OFFLINE_PROVIDER
+  let offlineFallbackError = null
+
   if (shouldThrottle()) {
-    console.log('[配额] 用量超过 95%，跳过本次调用')
-    return { content: '（配额接近上限，等待窗口滚动）', toolResult: null, aborted: false, delivered: false }
+    if (mustReply) {
+      console.log('[配额] 用量超过 95%，本轮自动切换到离线基础模式')
+      useOfflineStream = true
+      offlineFallbackError = new Error('local quota threshold reached')
+    } else {
+      console.log('[配额] 用量超过 95%，跳过本次调用')
+      return { content: '（配额接近上限，等待窗口滚动）', toolResult: null, aborted: false, delivered: false }
+    }
   }
 
   // 回合上下文追踪：把本 turn 每一轮模型看到的 messages[] 与思考/输出原样记下，供 /turn-trace
@@ -1027,6 +1037,14 @@ export async function callLLM({ systemPrompt, message, messages: inputMessages =
             onStream,
             round,
           })
+        : useOfflineStream
+          ? await createOfflineStreamResult({
+              message,
+              messages,
+              fallbackError: offlineFallbackError,
+              onStream,
+              enabled: mustReply,
+            })
         : await streamOnceWithModelFallback({
             messages,
             toolSchemas,
@@ -1039,6 +1057,26 @@ export async function callLLM({ systemPrompt, message, messages: inputMessages =
             onStream,  // 所有轮次均流式推送，让 UI 实时反映工具链执行过程中的模型输出
           })
     } catch (err) {
+      if (!useOfflineStream && mustReply && isOfflineFallbackError(err)) {
+        console.warn(`[LLM] 云端模型不可用，自动降级到离线基础模式: ${(err?.message || String(err)).slice(0, 120)}`)
+        useOfflineStream = true
+        offlineFallbackError = err
+        onRetry?.({
+          attempt: 1,
+          nextAttempt: 1,
+          maxAttempts: 1,
+          delayMs: 0,
+          error: err?.message || String(err),
+          offlineFallback: true,
+        })
+        roundResult = await createOfflineStreamResult({
+          message,
+          messages,
+          fallbackError: offlineFallbackError,
+          onStream,
+          enabled: mustReply,
+        })
+      } else {
       // 只要**前面的轮次已攒到可投递的回复**（典型：社交渠道第一轮已出答案、第二轮包 send_message 时
       // provider 卡死/报错，甚至重试退避期间被 watchdog 掐），就不能让这个错误/中止把已生成的答案一起
       // 带走——跳出循环走下方协议兜底投递（aborted 时它会用全新 signal 投递）。allContent 此刻可能已被
@@ -1048,6 +1086,7 @@ export async function callLLM({ systemPrompt, message, messages: inputMessages =
         break
       }
       throw err
+      }
     }
     const { content, reasoningContent, toolCalls, aborted } = roundResult
 

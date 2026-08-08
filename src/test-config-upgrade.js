@@ -201,6 +201,18 @@ async function loadFresh(json) {
   assert(switched.provider === 'deepseek' && mod.config.apiKey === 'sk-deepseek-valid-key-1234567890', 'I: 无需重新输入 key 即可切回旧 provider')
 }
 
+// Scenario K: Offline Lite activates and persists without an API key or endpoint.
+{
+  const mod = await loadFresh({ schemaVersion: 3 })
+  const prepared = await mod.prepareActivation({ provider: 'offline' })
+  assert(prepared.provider === 'offline' && prepared.model === 'offline-lite', 'K: Offline Lite 无网络探测即可准备')
+  const activated = mod.commitPreparedActivation(prepared)
+  assert(activated.provider === 'offline', 'K: Offline Lite 正常激活')
+  assert(mod.config.needsActivation === false && mod.config.apiKey === 'offline', 'K: Offline Lite 不需要真实 API Key')
+  const stored = JSON.parse(fs.readFileSync(path.join(llmDir, 'offline.json'), 'utf-8'))
+  assert(stored.model === 'offline-lite' && stored.apiKey === undefined, 'K: Offline Lite 配置不保存伪造的云端凭证')
+}
+
 try { fs.rmSync(tmp, { recursive: true, force: true }) } catch {}
 
 if (failed > 0) process.exit(1)

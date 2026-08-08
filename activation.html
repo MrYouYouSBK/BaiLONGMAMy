@@ -254,19 +254,34 @@
       font-size: 13px;
       color: #7a90a8;
     }
+    .mode-card {
+      margin: 16px 0 18px;
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(116, 216, 159, 0.25);
+      background: rgba(36, 104, 74, 0.13);
+    }
+    .mode-card-title {
+      margin-bottom: 4px;
+      color: #c8f5db;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .mode-card-copy {
+      margin: 0 0 12px;
+      color: #90aa9b;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    button.offline {
+      background: linear-gradient(135deg, #2f9d68 0%, #247d59 100%);
+    }
   </style>
 </head>
 <body>
   <main>
-    <h1>激活 Bailongma</h1>
-    <p class="subtitle">输入 API Key，Bailongma 会自动识别官方模型厂商。</p>
-
-    <!-- LLM Key -->
-    <div class="row">
-      <label for="apiKey">LLM Key</label>
-      <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 API Key" />
-    </div>
-    <div class="row-hint">支持 DeepSeek、MiniMax、OpenAI、通义千问、Moonshot、智谱、小米 MiMo 等官方端点</div>
+    <h1>开始使用 Bailongma</h1>
+    <p class="subtitle">无需购买授权、无需 API Key，也无需预先安装本地模型。</p>
 
     <!-- AI 名字 -->
     <div class="row">
@@ -274,7 +289,22 @@
       <input id="agentName" type="text" autocomplete="off" spellcheck="false" maxlength="32" placeholder="小白龙（默认）、贾维斯、Friday、小白" />
     </div>
 
-    <div class="section-divider">可选 可不填</div>
+    <div class="mode-card">
+      <div class="mode-card-title">Offline Lite · 零配置基础模式</div>
+      <p class="mode-card-copy">立即进入，可使用时间、日期、基础计算、状态与使用说明。之后可在设置中接入 GPT／DeepSeek 或本地 Ollama，云端余额不足时也会自动回到本模式。</p>
+      <button class="primary offline" id="activate-offline" type="button">立即开始 · 不需要 Key</button>
+    </div>
+
+    <div class="section-divider">可选：连接完整 AI</div>
+
+    <!-- LLM Key -->
+    <div class="row">
+      <label for="apiKey">LLM Key</label>
+      <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="有 Key 才填写，没有可直接使用上方模式" />
+    </div>
+    <div class="row-hint">支持 DeepSeek、MiniMax、OpenAI、通义千问、Moonshot、智谱、小米 MiMo 等官方端点</div>
+
+    <div class="section-divider">可选：语音服务</div>
 
     <!-- STT Optional Section -->
     <div class="opt-section">
@@ -304,13 +334,13 @@
 
 
     <div style="margin-top:20px;">
-      <button class="primary" id="activate" disabled>自动识别并进入</button>
+      <button class="primary" id="activate" disabled>识别云端 Key 并进入</button>
     </div>
     <div id="status" class="status"></div>
     <button id="settings-toggle" type="button">或使用自定义端点（本地模型）</button>
 
     <p class="hint">
-      激活信息会保存到本地 <code>config.json</code>，仅用于连接对应厂商的官方 API。
+      模式与连接信息只保存在本机；Offline Lite 不会向模型厂商发送内容。
     </p>
 
     <!-- Custom endpoint section -->
@@ -344,6 +374,7 @@
     const apiKeyInput = document.getElementById('apiKey')
     const agentNameInput = document.getElementById('agentName')
     const btn = document.getElementById('activate')
+    const offlineBtn = document.getElementById('activate-offline')
     const statusEl = document.getElementById('status')
     const AUTO_DETECT_DELAY_MS = 650
     let autoDetectTimer = null
@@ -561,6 +592,40 @@
       return { sttCfg, ttsCfg }
     }
 
+    async function activateOffline() {
+      const agentNameResult = readAgentName()
+      if (agentNameResult && typeof agentNameResult === 'object' && agentNameResult.error) {
+        setStatus(agentNameResult.error, 'err')
+        agentNameInput.focus()
+        return
+      }
+
+      offlineBtn.disabled = true
+      offlineBtn.textContent = '正在进入...'
+      setStatus('正在启用零配置离线模式...')
+      try {
+        const resp = await fetch('/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: 'offline',
+            model: 'offline-lite',
+            agentName: agentNameResult || '',
+          }),
+        })
+        const data = await resp.json().catch(() => ({}))
+        if (!resp.ok || !data.ok) throw new Error(data.error || '离线模式启动失败')
+        await saveOptionalVoiceConfigs()
+        try { sessionStorage.setItem(ACTIVATION_WARMUP_KEY, String(Date.now() + ACTIVATION_WARMUP_MS)) } catch {}
+        setStatus('Offline Lite 已启用，正在进入。', 'ok')
+        setTimeout(() => window.location.replace('/brain-ui'), 250)
+      } catch (err) {
+        setStatus(err.message || '离线模式启动失败', 'err')
+        offlineBtn.disabled = false
+        offlineBtn.textContent = '立即开始 · 不需要 Key'
+      }
+    }
+
     async function prepareActivation({ force = false } = {}) {
       const draft = currentActivationDraft()
       if (!draft.apiKey) return null
@@ -683,6 +748,7 @@
     }
 
     btn.addEventListener('click', activate)
+    offlineBtn.addEventListener('click', activateOffline)
     apiKeyInput.addEventListener('input', scheduleAutoActivation)
     apiKeyInput.addEventListener('keydown', event => {
       if (event.key === 'Enter' && !btn.disabled) activate()
