@@ -2,7 +2,17 @@
 
 # Bailongma
 
-> **BaiLONGMAMy Community Build** — 本仓库是基于 MIT License 源码维护的社区构建版，保留原作者版权与许可证。它不使用 `bailongma.top` 的 Pro 下载授权码；首次启动时只需要配置你自己选择的 LLM Provider API Key。
+> **BaiLONGMAMy Community Build** — 本仓库是基于 MIT License 源码维护的社区构建版，保留原作者版权与许可证。它不使用 `bailongma.top` 的 Pro 下载授权码；首次启动可以直接进入 Offline Lite，不需要 API Key、充值或预先安装本地模型。
+
+## 零配置运行与模型融合
+
+`v2.1.516` 起提供三层运行方式：
+
+1. **Offline Lite（默认保底）**：无需 Key、无需充值、无需 Ollama，可使用时间／日期、基础计算、运行状态与使用说明。
+2. **GPT／DeepSeek 等云端模型（可选增强）**：用户有可用 API Key 时接入完整对话、推理与工具规划。
+3. **Ollama／LM Studio（可选增强）**：连接用户自己的 OpenAI-compatible 本地端点。
+
+如果已配置的云端模型因为余额、配额、凭证、限流或网络问题无法调用，用户消息会自动降级到 Offline Lite；应用不会因为模型不可用而停止运行。Offline Lite 是诚实标示的确定性基础助手，不会冒充 GPT，也不会承诺开放式问答和复杂推理能力。
 
 ## 直接下载安装包
 
@@ -25,7 +35,7 @@ Bailongma 是一个持续运行的桌面 AI Agent 项目。它不是一次问答
 - 持续运行的主循环：处理用户消息、后台消息、提醒、任务续跑和空闲心跳。
 - 记忆系统：基于本地 SQLite 持久化对话、记忆、行动日志、提醒、预取缓存、媒体历史和线程状态，并支持全文检索、语义补充、去重与合并。
 - 动态上下文注入：每轮对话前自动选择相关记忆、最近对话、用户画像、工具结果、UI 信号、预取内容和运行状态。
-- 多模型接入：通过 OpenAI 兼容接口连接 DeepSeek、MiniMax、OpenAI、Qwen、Moonshot、Zhipu、MiMo 以及自定义服务。
+- 多模型接入：内置零配置 Offline Lite，并可通过 OpenAI 兼容接口连接 DeepSeek、MiniMax、OpenAI、Qwen、Moonshot、Zhipu、MiMo 以及自定义服务。
 - 工具系统：按需注入工具，支持通信、文件系统、Shell、网页读取、搜索、媒体生成、记忆管理、UI 卡片、任务、提醒、本地 Agent 委托和系统操作。
 - Brain UI：提供聊天、思考流、记忆图、焦点线程、热点面板、文档面板、人物卡片、语音控制、设置页和 ACUI 卡片渲染。
 - 语音能力：支持云端语音识别和多种 TTS 服务，可在 UI 中配置语音输入、语音输出和声音参数。
@@ -88,7 +98,7 @@ npm run start:backend:lan
 
 ## 配置
 
-首次启动后会进入激活页，填写任意已支持 Provider 的 API Key 即可。也可以通过 `.env` 提供环境变量：
+首次启动后会进入模式选择页。点击“立即开始 · 不需要 Key”即可进入 Offline Lite；如需完整 AI 能力，再填写任意已支持 Provider 的 API Key。也可以通过 `.env` 提供环境变量：
 
 ```env
 LLM_PROVIDER=minimax
@@ -118,7 +128,7 @@ http://127.0.0.1:3721
 | 页面 | 地址 | 用途 |
 | --- | --- | --- |
 | Brain UI | `/brain-ui` | 主界面、聊天、状态、设置和可视化 |
-| 激活页 | `/activation` | 首次配置 API Key |
+| 模式选择页 | `/activation` | 零配置进入，或首次配置 API Key／本地端点 |
 | 运行状态 | `/status` | 查看循环、任务和记忆概览 |
 | 配额状态 | `/quota` | 查看当前请求与限流状态 |
 | Turn Trace | `/turn-trace` | 查看回合级运行轨迹 |
