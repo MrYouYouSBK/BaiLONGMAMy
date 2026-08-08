@@ -14,7 +14,7 @@
 
 每个版本都附带 `SHA256SUMS.txt`，可用于核对下载文件完整性。目前社区构建没有 Apple Developer ID 签名；首次在 macOS 打开时，如系统拦截，请在“系统设置 → 隐私与安全性”选择“仍要打开”。
 
-安装包由 [GitHub Actions](https://github.com/MrYouYouSBK/BaiLONGMAMy/actions/workflows/build-installers.yml) 在 Windows 与 macOS 官方托管环境中自动生成。创建 `community-v*` 标签时会发布正式 Release；也可以手动运行工作流取得临时构建产物。
+安装包由 [GitHub Actions](https://github.com/MrYouYouSBK/BaiLONGMAMy/actions/workflows/build-installers.yml) 在 Windows 与 macOS 官方托管环境中自动生成。代码合并到 `main` 后会按 `package.json` 版本自动创建或更新 `community-v*` Release；也可以手动运行工作流取得临时构建产物。
 
 Bailongma 是一个持续运行的桌面 AI Agent 项目。它不是一次问答结束就退出的聊天程序，而是由主循环驱动：有用户消息时优先处理，空闲时按节奏继续整理记忆、检查任务、刷新上下文，并把状态实时推送到 Brain UI。
 
