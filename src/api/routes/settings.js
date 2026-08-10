@@ -3,7 +3,7 @@ import { pushMessage } from '../../inbound-message.js'
 import { restartConnector } from '../../social/index.js'
 import { removeProvider, replaceProvider, setPreferredProvider } from '../../providers/registry.js'
 import { MinimaxProvider } from '../../providers/minimax.js'
-import { OpenAICompatibleMediaProvider, StableDiffusionMediaProvider } from '../../providers/openai-media.js'
+import { GeminiMediaProvider, OpenAICompatibleMediaProvider, StableDiffusionMediaProvider } from '../../providers/openai-media.js'
 import {
   config,
   getActivationStatus,
@@ -28,6 +28,8 @@ import {
   setVoiceConfig,
   setWebSearchConfig,
   switchModel,
+  getSeedanceConfig,
+  setSeedanceConfig,
 } from '../../config.js'
 import { EMBEDDING_PROVIDER_PRESETS } from '../../config.js'
 import { TTS_PROVIDERS, TTS_VOICES } from '../../voice/tts-providers.js'
@@ -50,6 +52,15 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
     const media = getMediaProviderSettings()
     const minimaxConfigured = !!(globalThis.process?.env?.MINIMAX_API_KEY || getMinimaxKey())
     media.providers = media.providers.map(provider => provider.id === 'minimax' ? { ...provider, configured: minimaxConfigured } : provider)
+    const seedance = getSeedanceConfig()
+    media.seedance = {
+      configured: seedance.configured,
+      model: seedance.model,
+      baseURL: seedance.baseURL,
+    }
+    media.videoProviders = media.videoProviders.map(provider => provider.id === 'seedance'
+      ? { ...provider, configured: seedance.configured }
+      : provider)
     jsonResponse(res, 200, { ok: true, media })
     return true
   }
@@ -60,18 +71,39 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
       if (body.provider === 'minimax' && !(globalThis.process?.env?.MINIMAX_API_KEY || getMinimaxKey())) {
         throw new Error('MiniMax media requires a configured API key')
       }
-      const media = setMediaProviderSettings(body)
+      if (body.seedanceApiKey || body.seedanceModel || body.seedanceBaseURL) {
+        setSeedanceConfig({ apiKey: body.seedanceApiKey, model: body.seedanceModel, baseURL: body.seedanceBaseURL })
+      }
+      setMediaProviderSettings(body)
       const runtime = getMediaProviderRuntimeConfig()
       removeProvider('openai-media')
       removeProvider('stable-diffusion')
+      removeProvider('gemini-media')
+      removeProvider('doubao-media')
       if (runtime.provider === 'openai-compatible' && runtime.openaiApiKey) {
         replaceProvider(new OpenAICompatibleMediaProvider({ apiKey: runtime.openaiApiKey, baseURL: runtime.openaiBaseURL, model: runtime.openaiModel }))
       }
       if (runtime.provider === 'stable-diffusion') {
         replaceProvider(new StableDiffusionMediaProvider({ baseURL: runtime.stableDiffusionBaseURL }))
       }
-      const preferred = { minimax: 'minimax', 'openai-compatible': 'openai-media', 'stable-diffusion': 'stable-diffusion' }[runtime.provider]
+      if (runtime.provider === 'gemini' && runtime.geminiApiKey) {
+        replaceProvider(new GeminiMediaProvider({ apiKey: runtime.geminiApiKey, model: runtime.geminiImageModel }))
+      }
+      if (runtime.provider === 'doubao' && runtime.doubaoApiKey && runtime.doubaoImageModel) {
+        replaceProvider(new OpenAICompatibleMediaProvider({
+          name: 'doubao-media', apiKey: runtime.doubaoApiKey,
+          baseURL: runtime.doubaoBaseURL, model: runtime.doubaoImageModel,
+        }))
+      }
+      const preferred = {
+        minimax: 'minimax', 'openai-compatible': 'openai-media', 'stable-diffusion': 'stable-diffusion',
+        gemini: 'gemini-media', doubao: 'doubao-media',
+      }[runtime.provider]
       setPreferredProvider('image', preferred || '')
+      const media = getMediaProviderSettings()
+      const seedance = getSeedanceConfig()
+      media.seedance = { configured: seedance.configured, model: seedance.model, baseURL: seedance.baseURL }
+      media.videoProviders = media.videoProviders.map(item => item.id === 'seedance' ? { ...item, configured: seedance.configured } : item)
       jsonResponse(res, 200, { ok: true, media })
     } catch (err) {
       jsonResponse(res, 400, { ok: false, error: err.message })

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 
 function cultureFor(lang = 'en-US') {
-  return /^zh/i.test(String(lang || '')) ? 'zh-CN' : 'en-US'
+  return /^(zh|bilingual)/i.test(String(lang || '')) ? 'zh-CN' : 'en-US'
 }
 
 function buildPowerShell(culture) {

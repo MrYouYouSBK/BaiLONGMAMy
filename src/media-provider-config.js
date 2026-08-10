@@ -5,7 +5,15 @@ const OPENAI_BASE_REF = 'media-provider:openai:base-url'
 const OPENAI_KEY_REF = 'media-provider:openai:api-key'
 const OPENAI_MODEL_REF = 'media-provider:openai:model'
 const SD_BASE_REF = 'media-provider:stable-diffusion:base-url'
-const SUPPORTED = new Set(['auto', 'local', 'minimax', 'openai-compatible', 'stable-diffusion'])
+const GEMINI_KEY_REF = 'media-provider:gemini:api-key'
+const GEMINI_IMAGE_MODEL_REF = 'media-provider:gemini:image-model'
+const DOUBAO_KEY_REF = 'media-provider:doubao:api-key'
+const DOUBAO_BASE_REF = 'media-provider:doubao:base-url'
+const DOUBAO_IMAGE_MODEL_REF = 'media-provider:doubao:image-model'
+const VIDEO_PROVIDER_REF = 'media-provider:video:active'
+const GEMINI_VIDEO_MODEL_REF = 'media-provider:gemini:video-model'
+const SUPPORTED = new Set(['auto', 'local', 'minimax', 'openai-compatible', 'stable-diffusion', 'gemini', 'doubao'])
+const VIDEO_SUPPORTED = new Set(['seedance', 'gemini'])
 
 export function getMediaProviderRuntimeConfig() {
   const rawProvider = String(getSecret(ACTIVE_REF) || 'auto').trim().toLowerCase()
@@ -16,6 +24,15 @@ export function getMediaProviderRuntimeConfig() {
     openaiApiKey: String(getSecret(OPENAI_KEY_REF) || '').trim(),
     openaiModel: String(getSecret(OPENAI_MODEL_REF) || 'gpt-image-1').trim(),
     stableDiffusionBaseURL: String(getSecret(SD_BASE_REF) || 'http://127.0.0.1:7860').trim().replace(/\/$/, ''),
+    geminiApiKey: String(getSecret(GEMINI_KEY_REF) || '').trim(),
+    geminiImageModel: String(getSecret(GEMINI_IMAGE_MODEL_REF) || 'gemini-3.1-flash-image').trim(),
+    geminiVideoModel: String(getSecret(GEMINI_VIDEO_MODEL_REF) || 'veo-3.1-lite-generate-preview').trim(),
+    doubaoApiKey: String(getSecret(DOUBAO_KEY_REF) || '').trim(),
+    doubaoBaseURL: String(getSecret(DOUBAO_BASE_REF) || 'https://ark.cn-beijing.volces.com/api/v3').trim().replace(/\/$/, ''),
+    doubaoImageModel: String(getSecret(DOUBAO_IMAGE_MODEL_REF) || '').trim(),
+    videoProvider: VIDEO_SUPPORTED.has(String(getSecret(VIDEO_PROVIDER_REF) || 'seedance').trim().toLowerCase())
+      ? String(getSecret(VIDEO_PROVIDER_REF) || 'seedance').trim().toLowerCase()
+      : 'seedance',
   }
 }
 
@@ -27,18 +44,36 @@ export function getMediaProviderSettings() {
     openaiModel: config.openaiModel,
     openaiKeyConfigured: !!config.openaiApiKey,
     stableDiffusionBaseURL: config.stableDiffusionBaseURL,
+    geminiImageModel: config.geminiImageModel,
+    geminiVideoModel: config.geminiVideoModel,
+    geminiKeyConfigured: !!config.geminiApiKey,
+    doubaoBaseURL: config.doubaoBaseURL,
+    doubaoImageModel: config.doubaoImageModel,
+    doubaoKeyConfigured: !!config.doubaoApiKey,
+    videoProvider: config.videoProvider,
     providers: [
       { id: 'local', label: 'Local files / camera', configured: true },
       { id: 'stable-diffusion', label: 'Local Stable Diffusion (AUTOMATIC1111)', configured: config.provider === 'stable-diffusion' },
       { id: 'openai-compatible', label: 'OpenAI-compatible image model', configured: !!config.openaiApiKey },
+      { id: 'gemini', label: 'Gemini / Nano Banana', configured: !!config.geminiApiKey, mayCharge: true },
+      { id: 'doubao', label: 'Doubao Seedream / Ark', configured: !!config.doubaoApiKey && !!config.doubaoImageModel, mayCharge: true },
       { id: 'minimax', label: 'MiniMax', configured: false },
+    ],
+    videoProviders: [
+      { id: 'seedance', label: 'Doubao Seedance / Ark', configured: false, mayCharge: true },
+      { id: 'gemini', label: 'Gemini Veo', configured: !!config.geminiApiKey, mayCharge: true },
     ],
   }
 }
 
 export function setMediaProviderSettings(updates = {}) {
-  const provider = String(updates.provider || getMediaProviderRuntimeConfig().provider).trim().toLowerCase()
+  const current = getMediaProviderRuntimeConfig()
+  const provider = String(updates.provider || current.provider).trim().toLowerCase()
   if (!SUPPORTED.has(provider)) throw new Error(`Unsupported media provider: ${provider}`)
+  const nextVideoProvider = String(updates.videoProvider || current.videoProvider).trim().toLowerCase()
+  if (nextVideoProvider === 'gemini' && !String(updates.geminiApiKey || current.geminiApiKey).trim()) {
+    throw new Error('Gemini Veo requires a Gemini API key')
+  }
   if (updates.openaiBaseURL !== undefined) {
     const value = String(updates.openaiBaseURL || '').trim().replace(/\/$/, '')
     if (value && !/^https?:\/\//i.test(value)) throw new Error('Media Base URL must start with http:// or https://')
@@ -51,8 +86,28 @@ export function setMediaProviderSettings(updates = {}) {
     if (value && !/^https?:\/\//i.test(value)) throw new Error('Stable Diffusion URL must start with http:// or https://')
     if (value) setSecret(SD_BASE_REF, value)
   }
+  if (updates.geminiApiKey) setSecret(GEMINI_KEY_REF, String(updates.geminiApiKey).trim())
+  if (updates.geminiImageModel) setSecret(GEMINI_IMAGE_MODEL_REF, String(updates.geminiImageModel).trim())
+  if (updates.geminiVideoModel) setSecret(GEMINI_VIDEO_MODEL_REF, String(updates.geminiVideoModel).trim())
+  if (updates.doubaoApiKey) setSecret(DOUBAO_KEY_REF, String(updates.doubaoApiKey).trim())
+  if (updates.doubaoBaseURL !== undefined) {
+    const value = String(updates.doubaoBaseURL || '').trim().replace(/\/$/, '')
+    if (value && !/^https?:\/\//i.test(value)) throw new Error('Doubao Ark URL must start with http:// or https://')
+    if (value) setSecret(DOUBAO_BASE_REF, value)
+  }
+  if (updates.doubaoImageModel !== undefined) setSecret(DOUBAO_IMAGE_MODEL_REF, String(updates.doubaoImageModel || '').trim())
+  if (updates.videoProvider !== undefined) {
+    if (!VIDEO_SUPPORTED.has(nextVideoProvider)) throw new Error(`Unsupported video provider: ${nextVideoProvider}`)
+    setSecret(VIDEO_PROVIDER_REF, nextVideoProvider)
+  }
   if (provider === 'openai-compatible' && !getSecret(OPENAI_KEY_REF)) {
     throw new Error('OpenAI-compatible media requires an API key')
+  }
+  if (provider === 'gemini' && !getSecret(GEMINI_KEY_REF)) {
+    throw new Error('Gemini media requires a Gemini API key')
+  }
+  if (provider === 'doubao' && (!getSecret(DOUBAO_KEY_REF) || !getSecret(DOUBAO_IMAGE_MODEL_REF))) {
+    throw new Error('Doubao media requires an Ark API key and an exact Seedream model ID / endpoint ID')
   }
   setSecret(ACTIVE_REF, provider)
   return getMediaProviderSettings()

@@ -51,9 +51,10 @@ async function synthSpeechBuffer({ text, provider, voiceId, creds }) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const nodeStream = await streamTTS({ text, provider, voiceId, keys: creds })
+      const extension = nodeStream.extension || 'mp3'
       const buffer = await collectAudioStream(nodeStream)
       if (!buffer.length) throw new Error('TTS 返回空音频（音色可能未在账号开通，或参数不被支持）')
-      return buffer
+      return { buffer, extension }
     } catch (err) {
       lastErr = err
       if (err.name === 'AbortError') throw err
@@ -91,7 +92,6 @@ export async function execSpeak(args) {
   const { filename } = args
   console.log(`[speak] args:`, JSON.stringify(args))
   if (!rawText) return '错误：未提供要朗读的文字'
-  if (isDailyLimitReached('tts')) return '错误：今日 TTS 配额已用完'
 
   // 与流式 /tts/stream 入口对齐：先剥 markdown，避免把 * # ` 等符号念成"星号""井号"
   const text = stripMarkdownForSpeech(rawText)
@@ -99,28 +99,39 @@ export async function execSpeak(args) {
   if (text.length > SPEAK_MAX_CHARS) return `错误：文字过长（${text.length} 字），请控制在 ${SPEAK_MAX_CHARS} 字以内`
 
   const creds = getTTSCredentials()
+  if (creds.provider !== 'system' && isDailyLimitReached('tts')) {
+    console.warn('[speak] Cloud TTS daily limit reached; using free system voice')
+    creds.provider = 'system'
+    creds.voiceId = 'system-auto'
+  }
 
   // 合成前预检：当前服务商凭证没配齐就直接返回结构化引导，不冲到 API 才裸报错。
   const check = validateTTSConfig(creds)
-  if (!check.ok) return `语音合成还不能用：${check.guide}`
+  const activeProvider = check.ok ? creds.provider : 'system'
 
   const requestedVoiceId = args.voice_id || args.voice
-  const voiceId = resolveProviderVoiceId(creds.provider, requestedVoiceId, creds.voiceId)
+  const voiceId = resolveProviderVoiceId(activeProvider, requestedVoiceId, activeProvider === 'system' ? 'system-auto' : creds.voiceId)
 
-  let buffer
+  let audio
   try {
-    buffer = await synthSpeechBuffer({ text, provider: creds.provider, voiceId, creds })
+    audio = await synthSpeechBuffer({ text, provider: activeProvider, voiceId, creds })
   } catch (err) {
     if (err.name === 'AbortError') throw err
-    console.warn(`[speak] 合成失败: ${err.message}`)
-    return normalizeTTSError(err, creds.provider)
+    if (activeProvider !== 'system') {
+      try { audio = await synthSpeechBuffer({ text, provider: 'system', voiceId: 'system-auto', creds: {} }) }
+      catch (fallbackError) { console.warn(`[speak] 云端与系统语音均失败: ${fallbackError.message}`); return normalizeTTSError(err, creds.provider) }
+    } else {
+      console.warn(`[speak] 合成失败: ${err.message}`)
+      return normalizeTTSError(err, activeProvider)
+    }
   }
 
   const ts = nowTimestamp().replace(/[:.+]/g, '-').slice(0, 19)
-  const fname = filename ? filename.replace(/[^a-zA-Z0-9_一-龥-]/g, '') + '.mp3' : `speech_${ts}.mp3`
+  const extension = audio.extension === 'wav' ? 'wav' : 'mp3'
+  const fname = filename ? filename.replace(/[^a-zA-Z0-9_一-龥-]/g, '') + `.${extension}` : `speech_${ts}.${extension}`
   const resolved = path.resolve(SANDBOX_ROOT, 'audio', fname)
   fs.mkdirSync(path.dirname(resolved), { recursive: true })
-  fs.writeFileSync(resolved, buffer)
+  fs.writeFileSync(resolved, audio.buffer)
 
   const relPath = `audio/${fname}`
   emitEvent('audio_created', { path: relPath, text: text.slice(0, 60), autoPlay: true })

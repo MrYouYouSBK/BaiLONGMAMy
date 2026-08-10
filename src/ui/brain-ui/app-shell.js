@@ -472,17 +472,26 @@ const createSettingsModal = () => `
 
           <div class="settings-section" id="settings-tts-section">
             <div class="settings-section-label">语音合成（TTS）</div>
-            <p class="settings-hint">用语音发消息时，Agent 回复会自动转为语音播放。首选推荐豆包语音合成 2.0（https://console.volcengine.com/speech/new/），也支持 MiniMax、OpenAI、ElevenLabs、火山引擎。</p>
+            <p class="settings-hint">預設使用作業系統內建語音，免費且無需金鑰。雲端語音為選配；若不可用會自動回退到系統語音。</p>
             <div class="settings-row">
               <label class="settings-label" for="tts-provider-select">服务商</label>
               <select class="settings-select" id="tts-provider-select">
-                <option value="doubao">豆包（方舟，流式，中文最自然）</option>
-                <option value="openai">OpenAI TTS（流式，$0.015/千字）</option>
-                <option value="elevenlabs">ElevenLabs（流式，高质量）</option>
-                <option value="volcano">火山引擎（中文，有免费额度）</option>
-                <option value="minimax">MiniMax（已有配置）</option>
+                <option value="system">系統內建語音（免費／預設）</option>
+                <option value="doubao" style="color:#ef4444">豆包（雲端，可能收費）</option>
+                <option value="openai" style="color:#ef4444">OpenAI TTS（雲端，可能收費）</option>
+                <option value="elevenlabs" style="color:#ef4444">ElevenLabs（雲端，可能收費）</option>
+                <option value="volcano" style="color:#ef4444">火山引擎（雲端，可能收費）</option>
+                <option value="minimax" style="color:#ef4444">MiniMax（雲端，可能收費）</option>
               </select>
             </div>
+            <p class="settings-hint" style="color:#ef4444">紅色選項可能產生第三方費用；GAI AI 不會在未選擇及未配置時呼叫付費 TTS。</p>
+            <div class="settings-row" style="align-items:flex-start;flex-wrap:wrap;">
+              <label class="settings-label">我的語音樣本</label>
+              <button class="settings-save-btn" id="voice-profile-record" type="button">錄製 6 秒語音樣本</button>
+              <span class="settings-hint" id="voice-profile-status">樣本只保存在此裝置。</span>
+              <audio id="voice-profile-player" controls hidden style="width:100%;margin-left:148px;"></audio>
+            </div>
+            <p class="settings-hint" style="color:#ef4444">付費聲音克隆服務並未自動啟用；本機樣本不會上傳。若日後選擇第三方克隆模型，必須另外確認費用與隱私條款。</p>
             <div class="settings-row">
               <label class="settings-label" for="tts-voice-select">声音</label>
               <select class="settings-select" id="tts-voice-select"></select>
@@ -596,7 +605,8 @@ const createSettingsModal = () => `
             <div class="settings-row">
               <label class="settings-label" for="voice-lang-select">识别语言</label>
               <select class="settings-select" id="voice-lang-select">
-                <option value="en-US">English (US, default)</option>
+                <option value="bilingual">中文 + English（雙語／預設）</option>
+                <option value="en-US">English (US)</option>
                 <option value="zh-CN">中文（普通话）</option>
               </select>
             </div>
@@ -993,8 +1003,20 @@ const createPanelTabs = () => `
 <button id="panel-l2-tab" class="panel-tab panel-tab-right" aria-label="切换右面板" title="切换右面板 ] "></button>
 `;
 
+const createEntryCeremony = () => `
+<div class="gai-entry-ceremony" id="gai-entry-ceremony" aria-hidden="true">
+  <div class="gai-entry-scan"></div>
+  <div class="gai-entry-core">
+    <div class="gai-entry-orbit orbit-a"></div>
+    <div class="gai-entry-orbit orbit-b"></div>
+    <div class="gai-entry-mark">GAI</div>
+  </div>
+  <div class="gai-entry-copy"><strong>GAI AI</strong><span data-en="SYSTEM AWAKENING" data-zh="系統喚醒中">SYSTEM AWAKENING</span></div>
+</div>`;
+
 export function createBrainUiMarkup() {
   return [
+    createEntryCeremony(),
     createGraphStage(),
     createPrimaryPanel(),
     createSecondaryPanel(),

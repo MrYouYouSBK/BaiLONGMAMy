@@ -651,7 +651,7 @@ export function createVoiceCore({ canvas, transcript, getChatInput, getSendMessa
     ws.onopen = () => {
       if (cloudWs !== ws) return;
       const provider = localStorage.getItem(VOICE_PROVIDER_KEY) || 'aliyun';
-      const lang = getLang?.()?.split('-')[0] || 'zh';
+      const lang = getLang?.() || 'bilingual';
       ws.send(JSON.stringify({ type: 'config', provider, lang }));
       setStatus('listening');
       lastInboundTs = Date.now(); // 看门狗：（重）连后给一个新鲜起点，避免连上瞬间误判停滞
@@ -892,7 +892,7 @@ export function createVoiceCore({ canvas, transcript, getChatInput, getSendMessa
       bargeinWs.onopen = () => {
         if (cloudWs !== bargeinWs) return;
         const provider = localStorage.getItem(VOICE_PROVIDER_KEY) || 'aliyun';
-        const lang = getLang?.()?.split('-')[0] || 'zh';
+        const lang = getLang?.() || 'bilingual';
         bargeinWs.send(JSON.stringify({ type: 'config', provider, lang }));
         lastInboundTs = Date.now(); // 看门狗：打断重连后给新鲜起点
         // 先把预缓冲的历史音频一次性发出，补回打断前说的内容

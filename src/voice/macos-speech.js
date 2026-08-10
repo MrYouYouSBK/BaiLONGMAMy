@@ -28,6 +28,7 @@ function resolveMacSpeechBinary() {
 
 function normalizeLang(lang = 'zh-CN') {
   const value = String(lang || 'zh-CN').trim()
+  if (value === 'bilingual') return 'zh-CN'
   if (/^en/i.test(value)) return 'en-US'
   if (/^zh/i.test(value)) return 'zh-CN'
   return value

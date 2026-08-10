@@ -34,7 +34,7 @@ function createAliyunSession(apiKey, lang, onTranscript, onError, onClose, onEve
   })
 
   ws.on('open', () => {
-    const langCode = (lang === 'zh' || !lang) ? 'zh' : lang
+    const languageHints = lang === 'bilingual' ? ['zh', 'en'] : [(lang === 'zh' || /^zh-/i.test(lang) || !lang) ? 'zh' : 'en']
     ws.send(JSON.stringify({
       header: { action: 'run-task', task_id: taskId, streaming: 'duplex' },
       payload: {
@@ -45,7 +45,7 @@ function createAliyunSession(apiKey, lang, onTranscript, onError, onClose, onEve
         parameters: {
             sample_rate: 16000,
             format: 'pcm',
-            language_hints: [langCode],
+            language_hints: languageHints,
             punctuation_prediction: true,
             inverse_text_normalization: true,
           },
@@ -127,7 +127,7 @@ function createTencentSession(secretId, secretKey, appId, lang, onTranscript, on
     timestamp: ts,
     expired: ts + 86400,
     nonce,
-    engine_model_type: lang === 'zh' ? '16k_zh' : '16k_en',
+    engine_model_type: lang === 'bilingual' ? '16k_zh_en' : (/^zh/i.test(lang) ? '16k_zh' : '16k_en'),
     voice_format: 1,
     needvad: 1,
   }

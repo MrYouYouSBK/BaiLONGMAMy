@@ -1,7 +1,7 @@
 {
   "name": "gai-ai",
   "productName": "GAI AI",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "A bilingual, offline-first personal AI for Windows and macOS",
   "type": "module",
   "main": "electron/main.cjs",
@@ -51,6 +51,7 @@
     "test:media-modules": "node ./src/test-media-modules.js",
     "test:db-schema-module": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:ELECTRON_RUN_AS_NODE='1'; .\\node_modules\\.bin\\electron.cmd .\\src\\test-db-schema-module.js\"",
     "test:voice-continuous": "node ./src/test-voice-continuous.js",
+    "test:gai-v31": "node ./src/test-gai-v31.js",
     "test:websocket-security": "node ./src/test-websocket-security.js",
     "repair:memories:dry": "electron ./scripts/repair-memory-quality.js",
     "repair:memories": "electron ./scripts/repair-memory-quality.js --apply",

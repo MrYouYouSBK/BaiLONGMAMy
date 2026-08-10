@@ -1,7 +1,8 @@
 import { API } from './api-client.js';
+import { applyUiLocale, currentUiLocale } from './ui-i18n.js';
 
-const LANGUAGE_KEY = 'gai-ui-language';
 const THEME_KEY = 'jarvis-brain-ui-theme';
+const SEARCH_HISTORY_KEY = 'gai-google-search-history';
 
 const t = (en, zh) => `data-en="${en}" data-zh="${zh}"`;
 
@@ -10,7 +11,7 @@ export function createGaiControlMarkup() {
   <div class="settings-tab active" data-tab="gai-control">
     <div class="gai-control-hero">
       <div>
-        <div class="gai-control-kicker">GAI AI 3.0</div>
+        <div class="gai-control-kicker">GAI AI 3.1</div>
         <h2 ${t('Offline-first control center', '離線優先控制中心')}>Offline-first control center</h2>
         <p ${t('Works immediately with GAI Offline Super. Cloud and local services are optional.', 'GAI Offline Super 可直接運行；雲端與本地服務均為選配。')}>Works immediately with GAI Offline Super. Cloud and local services are optional.</p>
       </div>
@@ -60,22 +61,28 @@ export function createGaiControlMarkup() {
         <label id="gai-map-key-row"><span ${t('Browser key', 'Web 端 Key')}>Browser key</span><input id="gai-map-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
         <label id="gai-map-security-row"><span>Amap securityJsCode</span><input id="gai-map-security" type="password" autocomplete="new-password" placeholder="Amap only"></label>
         <div class="gai-actions"><button type="button" id="gai-save-map" ${t('Save map', '保存地圖')}>Save map</button></div>
-        <div class="gai-links"><a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noreferrer">Google key / sign in ↗</a><a href="https://console.amap.com/dev/key/app" target="_blank" rel="noreferrer">Amap key / 登入 ↗</a><a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer">OpenStreetMap ↗</a></div>
+        <p ${t('If the Google key page will not open, use these steps in order:', '若 Google Key 頁面打不開，請依序使用：')}>If the Google key page will not open, use these steps in order:</p>
+        <div class="gai-links"><a href="https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fconsole.cloud.google.com%2F" target="_blank" rel="noreferrer">1. Google sign in ↗</a><a href="https://console.cloud.google.com/projectselector2/home/dashboard" target="_blank" rel="noreferrer">2. Select / create project ↗</a><a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" rel="noreferrer">3. Enable Maps API ↗</a><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">4. Create key ↗</a><a href="https://console.amap.com/dev/key/app" target="_blank" rel="noreferrer">Amap key ↗</a></div>
         <div class="gai-inline-feedback" id="gai-map-feedback"></div>
       </section>
 
       <section class="gai-card">
         <h3 ${t('Web search', '搜索引擎')}>Web search</h3>
+        <p ${t('Use your normal Google browser session; GAI AI never reads your Google password or token. Search history is stored only on this device.', '使用瀏覽器現有的 Google 登入；GAI AI 不會讀取 Google 密碼或 Token。搜索紀錄只保存在此裝置。')}>Use your normal Google browser session; GAI AI never reads your Google password or token. Search history is stored only on this device.</p>
+        <label><span ${t('Google search', 'Google 搜索')}>Google search</span><input id="gai-google-query" type="search" placeholder="Search with your Google account"></label>
+        <div class="gai-actions"><button type="button" id="gai-google-search" ${t('Search Google', '用 Google 搜索')}>Search Google</button><button type="button" id="gai-clear-search-history" ${t('Clear local history', '清除本機紀錄')}>Clear local history</button></div>
+        <div class="gai-search-history" id="gai-search-history"></div>
         <label><span ${t('Preferred engine', '首選引擎')}>Preferred engine</span>
           <select id="gai-search-provider"><option value="auto">Automatic</option><option value="google">Google (Serper)</option><option value="brave">Brave</option><option value="bing">Bing</option><option value="duckduckgo">DuckDuckGo</option><option value="tavily">Tavily</option><option value="jina">Jina</option></select>
         </label>
         <div class="gai-actions"><button type="button" id="gai-save-search" ${t('Save search', '保存搜索')}>Save search</button></div>
-        <div class="gai-links"><a href="https://accounts.google.com" target="_blank" rel="noreferrer">Google sign in ↗</a><a href="https://serper.dev" target="_blank" rel="noreferrer">Google Search API ↗</a><a href="https://brave.com/search/api/" target="_blank" rel="noreferrer">Brave ↗</a><a href="https://tavily.com" target="_blank" rel="noreferrer">Tavily ↗</a></div>
+        <div class="gai-links"><a href="https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fwww.google.com%2F" target="_blank" rel="noreferrer">Google sign in ↗</a><a href="https://serper.dev" target="_blank" rel="noreferrer">Google Search API ↗</a><a href="https://brave.com/search/api/" target="_blank" rel="noreferrer">Brave ↗</a><a href="https://tavily.com" target="_blank" rel="noreferrer">Tavily ↗</a></div>
         <div class="gai-inline-feedback" id="gai-search-feedback"></div>
       </section>
 
       <section class="gai-card">
         <h3 ${t('Voice recognition', '語音識別')}>Voice recognition</h3>
+        <label><span ${t('Recognition language', '識別語言')}>Recognition language</span><select id="gai-voice-language"><option value="bilingual">中文 + English (default)</option><option value="en-US">English</option><option value="zh-CN">中文</option></select></label>
         <label><span ${t('Speech provider', '語音服務商')}>Speech provider</span>
           <select id="gai-voice-provider"><option value="local">Windows / macOS Native</option><option value="aliyun">Alibaba Cloud</option><option value="volcengine">Volcengine</option><option value="tencent">Tencent Cloud</option><option value="xunfei">iFlytek</option></select>
         </label>
@@ -87,8 +94,9 @@ export function createGaiControlMarkup() {
       <section class="gai-card">
         <h3 ${t('Media & camera', '媒體與攝像頭')}>Media & camera</h3>
         <label><span ${t('Media engine', '媒體引擎')}>Media engine</span>
-          <select id="gai-media-provider"><option value="local">Local files / camera</option><option value="stable-diffusion">Local Stable Diffusion</option><option value="openai-compatible">OpenAI-compatible image model</option><option value="minimax">MiniMax</option><option value="auto">Automatic</option></select>
+          <select id="gai-media-provider"><option value="local">Local files / camera (free)</option><option value="stable-diffusion">Local Stable Diffusion (free)</option><option value="gemini" style="color:#ef4444">Gemini / Nano Banana (may charge)</option><option value="doubao" style="color:#ef4444">Doubao Seedream (may charge)</option><option value="openai-compatible" style="color:#ef4444">OpenAI-compatible image model (may charge)</option><option value="minimax" style="color:#ef4444">MiniMax (may charge)</option><option value="auto">Automatic</option></select>
         </label>
+        <p class="gai-paid-note" ${t('Red cloud models may incur third-party charges. Local media remains the default.', '紅色雲端模型可能產生第三方費用；本機媒體仍為預設。')}>Red cloud models may incur third-party charges. Local media remains the default.</p>
         <div id="gai-media-openai-fields">
           <label><span>Base URL</span><input id="gai-media-baseurl" type="text" placeholder="https://api.openai.com/v1"></label>
           <label><span>API key</span><input id="gai-media-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
@@ -96,6 +104,22 @@ export function createGaiControlMarkup() {
         </div>
         <div id="gai-media-sd-fields">
           <label><span>Stable Diffusion URL</span><input id="gai-media-sd-url" type="text" placeholder="http://127.0.0.1:7860"></label>
+        </div>
+        <div id="gai-media-gemini-fields">
+          <label><span>Gemini API key</span><input id="gai-gemini-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
+          <label><span ${t('Image model', '圖像模型')}>Image model</span><input id="gai-gemini-image-model" type="text" placeholder="gemini-3.1-flash-image"></label>
+          <label><span ${t('Video model', '影片模型')}>Video model</span><input id="gai-gemini-video-model" type="text" placeholder="veo-3.1-lite-generate-preview"></label>
+        </div>
+        <div id="gai-media-doubao-fields">
+          <label><span>Doubao Ark API key</span><input id="gai-doubao-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
+          <label><span>Ark Base URL</span><input id="gai-doubao-baseurl" type="text" placeholder="https://ark.cn-beijing.volces.com/api/v3"></label>
+          <label><span ${t('Seedream model / endpoint ID', 'Seedream 模型／接入點 ID')}>Seedream model / endpoint ID</span><input id="gai-doubao-image-model" type="text" placeholder="Your exact model or ep-… ID"></label>
+        </div>
+        <label><span ${t('Video provider', '影片服務商')}>Video provider</span><select id="gai-video-provider"><option value="seedance" style="color:#ef4444">Doubao Seedance (may charge)</option><option value="gemini" style="color:#ef4444">Gemini Veo (paid-only API)</option></select></label>
+        <div id="gai-media-seedance-fields">
+          <label><span>Seedance API key</span><input id="gai-seedance-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
+          <label><span>Seedance model / endpoint ID</span><input id="gai-seedance-model" type="text" placeholder="doubao-seedance-… or ep-…"></label>
+          <label><span>Seedance Base URL</span><input id="gai-seedance-baseurl" type="text" placeholder="https://ark.cn-beijing.volces.com/api/v3"></label>
         </div>
         <div class="gai-actions"><button type="button" id="gai-save-media" ${t('Save media', '保存媒體')}>Save media</button><button type="button" id="gai-open-camera" ${t('Open camera now', '立即開啟攝像頭')}>Open camera now</button></div>
         <div class="gai-links"><a href="https://chatgpt.com" target="_blank" rel="noreferrer">OpenAI / ChatGPT ↗</a><a href="https://aistudio.google.com" target="_blank" rel="noreferrer">Google AI Studio ↗</a><a href="https://platform.minimax.io" target="_blank" rel="noreferrer">MiniMax ↗</a></div>
@@ -106,21 +130,12 @@ export function createGaiControlMarkup() {
 }
 
 function locale() {
-  return localStorage.getItem(LANGUAGE_KEY) === 'zh' ? 'zh' : 'en';
+  return currentUiLocale();
 }
 
-function applyLocale(next, { syncVoice = true } = {}) {
+function applyLocale(next) {
   const lang = next === 'zh' ? 'zh' : 'en';
-  localStorage.setItem(LANGUAGE_KEY, lang);
-  if (syncVoice) localStorage.setItem('bailongma-voice-lang', lang === 'zh' ? 'zh-CN' : 'en-US');
-  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-  document.querySelectorAll('[data-en][data-zh]').forEach((el) => {
-    el.textContent = el.dataset[lang] || el.dataset.en;
-  });
-  const input = document.getElementById('msg-input');
-  if (input && !input.value) input.placeholder = lang === 'zh'
-    ? '向 GAI AI 發送消息…（輸入 / 調出命令，Shift+Enter 換行）'
-    : 'Message GAI AI… (/ commands, Shift+Enter for a new line)';
+  applyUiLocale(lang);
 }
 
 function status(el, value, kind = '') {
@@ -150,9 +165,14 @@ export function initGaiControlCenter() {
   const mapSecurityRow = document.getElementById('gai-map-security-row');
   const searchProvider = document.getElementById('gai-search-provider');
   const voiceProvider = document.getElementById('gai-voice-provider');
+  const voiceLanguage = document.getElementById('gai-voice-language');
   const mediaProvider = document.getElementById('gai-media-provider');
+  const videoProvider = document.getElementById('gai-video-provider');
   const mediaOpenAIFields = document.getElementById('gai-media-openai-fields');
   const mediaSDFields = document.getElementById('gai-media-sd-fields');
+  const mediaGeminiFields = document.getElementById('gai-media-gemini-fields');
+  const mediaDoubaoFields = document.getElementById('gai-media-doubao-fields');
+  const mediaSeedanceFields = document.getElementById('gai-media-seedance-fields');
 
   const setFeedback = (id, message, error = false) => {
     const el = document.getElementById(id);
@@ -165,7 +185,7 @@ export function initGaiControlCenter() {
   });
 
   langSelect.value = locale();
-  applyLocale(langSelect.value, { syncVoice: false });
+  applyLocale(langSelect.value);
   langSelect.addEventListener('change', () => applyLocale(langSelect.value));
   themeSelect.value = localStorage.getItem(THEME_KEY) || 'midnight';
   themeSelect.addEventListener('change', () => {
@@ -180,8 +200,42 @@ export function initGaiControlCenter() {
   const syncMediaFields = () => {
     mediaOpenAIFields.hidden = mediaProvider.value !== 'openai-compatible';
     mediaSDFields.hidden = mediaProvider.value !== 'stable-diffusion';
+    mediaGeminiFields.hidden = mediaProvider.value !== 'gemini' && videoProvider.value !== 'gemini';
+    mediaDoubaoFields.hidden = mediaProvider.value !== 'doubao';
+    mediaSeedanceFields.hidden = videoProvider.value !== 'seedance';
   };
   mediaProvider.addEventListener('change', syncMediaFields);
+  videoProvider.addEventListener('change', syncMediaFields);
+
+  function readSearchHistory() {
+    try { const value = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]'); return Array.isArray(value) ? value : []; }
+    catch { return []; }
+  }
+  function renderSearchHistory() {
+    const root = document.getElementById('gai-search-history');
+    if (!root) return;
+    root.replaceChildren();
+    for (const item of readSearchHistory().slice(0, 8)) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'gai-history-item'; button.textContent = item.query;
+      button.title = new Date(item.at).toLocaleString();
+      button.addEventListener('click', () => window.open(`https://www.google.com/search?q=${encodeURIComponent(item.query)}`, '_blank', 'noopener'));
+      root.appendChild(button);
+    }
+  }
+  function runGoogleSearch() {
+    const input = document.getElementById('gai-google-query');
+    const query = String(input?.value || '').trim();
+    if (!query) return;
+    const next = [{ query, at: new Date().toISOString() }, ...readSearchHistory().filter(item => item?.query !== query)].slice(0, 20);
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
+    renderSearchHistory();
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener');
+  }
+  document.getElementById('gai-google-search')?.addEventListener('click', runGoogleSearch);
+  document.getElementById('gai-google-query')?.addEventListener('keydown', event => { if (event.key === 'Enter') runGoogleSearch(); });
+  document.getElementById('gai-clear-search-history')?.addEventListener('click', () => { localStorage.removeItem(SEARCH_HISTORY_KEY); renderSearchHistory(); });
+  renderSearchHistory();
 
   async function refreshDevices() {
     try {
@@ -246,7 +300,7 @@ export function initGaiControlCenter() {
     catch (error) { setFeedback('gai-search-feedback', error.message, true); }
   });
   document.getElementById('gai-save-voice')?.addEventListener('click', async () => {
-    try { await post('/settings/voice', { voiceProvider: voiceProvider.value }); localStorage.setItem('bailongma-voice-provider', voiceProvider.value); setFeedback('gai-voice-feedback', locale() === 'zh' ? '語音服務已保存。' : 'Voice provider saved.'); }
+    try { await post('/settings/voice', { voiceProvider: voiceProvider.value }); localStorage.setItem('bailongma-voice-provider', voiceProvider.value); localStorage.setItem('bailongma-voice-lang', voiceLanguage.value); document.getElementById('voice-lang-select') && (document.getElementById('voice-lang-select').value = voiceLanguage.value); setFeedback('gai-voice-feedback', locale() === 'zh' ? '語音服務與雙語設定已保存。' : 'Voice provider and bilingual recognition saved.'); }
     catch (error) { setFeedback('gai-voice-feedback', error.message, true); }
   });
   document.getElementById('gai-request-mic')?.addEventListener('click', async () => {
@@ -265,8 +319,21 @@ export function initGaiControlCenter() {
         openaiApiKey: document.getElementById('gai-media-key').value,
         openaiModel: document.getElementById('gai-media-model').value,
         stableDiffusionBaseURL: document.getElementById('gai-media-sd-url').value,
+        geminiApiKey: document.getElementById('gai-gemini-key').value,
+        geminiImageModel: document.getElementById('gai-gemini-image-model').value,
+        geminiVideoModel: document.getElementById('gai-gemini-video-model').value,
+        doubaoApiKey: document.getElementById('gai-doubao-key').value,
+        doubaoBaseURL: document.getElementById('gai-doubao-baseurl').value,
+        doubaoImageModel: document.getElementById('gai-doubao-image-model').value,
+        videoProvider: videoProvider.value,
+        seedanceApiKey: document.getElementById('gai-seedance-key').value,
+        seedanceModel: document.getElementById('gai-seedance-model').value,
+        seedanceBaseURL: document.getElementById('gai-seedance-baseurl').value,
       });
       document.getElementById('gai-media-key').value = '';
+      document.getElementById('gai-gemini-key').value = '';
+      document.getElementById('gai-doubao-key').value = '';
+      document.getElementById('gai-seedance-key').value = '';
       setFeedback('gai-media-feedback', locale() === 'zh' ? '媒體引擎已保存並立即生效。' : 'Media engine saved and active.');
     } catch (error) { setFeedback('gai-media-feedback', error.message, true); }
   });
@@ -275,16 +342,24 @@ export function initGaiControlCenter() {
   Promise.allSettled([
     json('/settings/map').then(({ map }) => { mapProvider.value = map?.provider || 'osm'; syncMapFields(); }),
     json('/settings/web-search').then(({ webSearch }) => { searchProvider.value = webSearch?.preferredEngine || 'auto'; }),
-    json('/settings/voice').then(({ voice }) => { voiceProvider.value = voice?.voiceProvider || 'local'; }),
+    json('/settings/voice').then(({ voice }) => { voiceProvider.value = voice?.voiceProvider || 'local'; voiceLanguage.value = localStorage.getItem('bailongma-voice-lang') || 'bilingual'; }),
     json('/settings/media-provider').then(({ media }) => {
       mediaProvider.value = media?.provider || 'local';
       document.getElementById('gai-media-baseurl').value = media?.openaiBaseURL || 'https://api.openai.com/v1';
       document.getElementById('gai-media-model').value = media?.openaiModel || 'gpt-image-1';
       document.getElementById('gai-media-sd-url').value = media?.stableDiffusionBaseURL || 'http://127.0.0.1:7860';
+      videoProvider.value = media?.videoProvider || 'seedance';
+      document.getElementById('gai-gemini-image-model').value = media?.geminiImageModel || 'gemini-3.1-flash-image';
+      document.getElementById('gai-gemini-video-model').value = media?.geminiVideoModel || 'veo-3.1-lite-generate-preview';
+      document.getElementById('gai-doubao-baseurl').value = media?.doubaoBaseURL || 'https://ark.cn-beijing.volces.com/api/v3';
+      document.getElementById('gai-doubao-image-model').value = media?.doubaoImageModel || '';
+      document.getElementById('gai-seedance-model').value = media?.seedance?.model || '';
+      document.getElementById('gai-seedance-baseurl').value = media?.seedance?.baseURL || 'https://ark.cn-beijing.volces.com/api/v3';
       syncMediaFields();
     }),
   ]).catch(() => {});
   syncMediaFields();
+  voiceLanguage.value = localStorage.getItem('bailongma-voice-lang') || 'bilingual';
   window.bailongma?.onUpdaterStatus?.((payload) => status(updateStatus, payload?.stage || 'automatic', payload?.stage === 'downloaded' || payload?.stage === 'up-to-date' ? 'ok' : ''));
   refreshDevices();
   detectLocalAI();

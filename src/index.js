@@ -29,7 +29,7 @@ import { formatTick, nowTimestamp, describeExistence } from './time.js'
 import { getAdaptiveTickInterval, getQuotaStatus, setRateLimited, isRateLimited, getTickInterval } from './quota.js'
 import { registerProvider, setPreferredProvider } from './providers/registry.js'
 import { MinimaxProvider } from './providers/minimax.js'
-import { OpenAICompatibleMediaProvider, StableDiffusionMediaProvider } from './providers/openai-media.js'
+import { GeminiMediaProvider, OpenAICompatibleMediaProvider, StableDiffusionMediaProvider } from './providers/openai-media.js'
 import { getMediaProviderRuntimeConfig } from './media-provider-config.js'
 import { isRunning, setScheduler } from './control.js'
 import { getCustomIntervalMs, consumeTick as consumeTickerTick, getStatus as getTickerStatus } from './ticker.js'
@@ -243,10 +243,23 @@ function registerOptionalMediaProviders() {
   if (media.provider === 'stable-diffusion') {
     registerProvider(new StableDiffusionMediaProvider({ baseURL: media.stableDiffusionBaseURL }))
   }
+  if (media.provider === 'gemini' && media.geminiApiKey) {
+    registerProvider(new GeminiMediaProvider({ apiKey: media.geminiApiKey, model: media.geminiImageModel }))
+  }
+  if (media.provider === 'doubao' && media.doubaoApiKey && media.doubaoImageModel) {
+    registerProvider(new OpenAICompatibleMediaProvider({
+      name: 'doubao-media',
+      apiKey: media.doubaoApiKey,
+      baseURL: media.doubaoBaseURL,
+      model: media.doubaoImageModel,
+    }))
+  }
   const preferred = {
     minimax: 'minimax',
     'openai-compatible': 'openai-media',
     'stable-diffusion': 'stable-diffusion',
+    gemini: 'gemini-media',
+    doubao: 'doubao-media',
   }[media.provider]
   setPreferredProvider('image', preferred || '')
 }
