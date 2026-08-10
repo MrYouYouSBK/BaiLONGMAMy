@@ -123,21 +123,24 @@ jobs:
       - name: Build macOS DMG
         run: npm run build:mac:${{ matrix.arch }}
 
+      - name: Verify macOS architecture and launch
+        run: npm run verify:mac -- ${{ matrix.arch }}
+
       - name: Preserve architecture-specific update metadata
         run: mv dist/latest-mac.yml dist/latest-${{ matrix.arch }}-mac.yml
 
       - name: Create macOS checksum
-        run: shasum -a 256 dist/*.dmg > dist/SHA256SUMS-macos-${{ matrix.arch }}.txt
+        run: shasum -a 256 dist/GAI-AI-*-mac-${{ matrix.arch }}.dmg > dist/SHA256SUMS-macos-${{ matrix.arch }}.txt
 
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
           name: GAI-AI-macos-${{ matrix.arch }}
           path: |
-            dist/*.dmg
-            dist/*.dmg.blockmap
-            dist/*.zip
-            dist/*.zip.blockmap
+            dist/GAI-AI-*-mac-${{ matrix.arch }}.dmg
+            dist/GAI-AI-*-mac-${{ matrix.arch }}.dmg.blockmap
+            dist/GAI-AI-*-mac-${{ matrix.arch }}.zip
+            dist/GAI-AI-*-mac-${{ matrix.arch }}.zip.blockmap
             dist/latest-${{ matrix.arch }}-mac.yml
             dist/SHA256SUMS-macos-${{ matrix.arch }}.txt
           if-no-files-found: error
