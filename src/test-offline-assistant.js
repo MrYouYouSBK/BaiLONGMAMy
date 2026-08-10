@@ -22,7 +22,7 @@ assert.equal(onlineRuntime.runAwakeningTicks, true, 'model-backed providers reta
 
 assert.equal(evaluateOfflineExpression('(1250 + 88) * 3'), 4014)
 assert.equal(evaluateOfflineExpression('2^3^2'), 512)
-assert.throws(() => evaluateOfflineExpression('1 / 0'), /不能除以零/)
+assert.throws(() => evaluateOfflineExpression('1 / 0'), /cannot divide by zero/)
 
 const help = buildOfflineReply({ message: '帮助' })
 assert.match(help, /不需要 API Key/)
@@ -38,7 +38,7 @@ const fallback = buildOfflineReply({
   message: '你好',
   fallbackError: Object.assign(new Error('insufficient_quota'), { status: 429 }),
 })
-assert.match(fallback, /自动切换到离线基础模式/)
+assert.match(fallback, /切换到 GAI Offline Super/)
 assert.equal(isOfflineFallbackError(Object.assign(new Error('payment required'), { status: 402 })), true)
 assert.equal(isOfflineFallbackError(new Error('ordinary validation bug')), false)
 
@@ -54,4 +54,4 @@ assert.deepEqual(streamEvents.map(event => event.event), ['start', 'chunk', 'end
 const background = await createOfflineStreamResult({ message: 'TICK', enabled: false })
 assert.equal(background.content, '', 'background turns stay silent in Offline Lite')
 
-console.log('PASS: Offline Lite runs without an API key or an installed local model')
+console.log('PASS: GAI Offline Super runs without an API key or an installed local model')

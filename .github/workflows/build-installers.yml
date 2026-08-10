@@ -83,9 +83,11 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: BaiLONGMAMy-windows-x64
+          name: GAI-AI-windows-x64
           path: |
             dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
             dist/SHA256SUMS-windows.txt
           if-no-files-found: error
 
@@ -121,15 +123,22 @@ jobs:
       - name: Build macOS DMG
         run: npm run build:mac:${{ matrix.arch }}
 
+      - name: Preserve architecture-specific update metadata
+        run: mv dist/latest-mac.yml dist/latest-${{ matrix.arch }}-mac.yml
+
       - name: Create macOS checksum
         run: shasum -a 256 dist/*.dmg > dist/SHA256SUMS-macos-${{ matrix.arch }}.txt
 
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
-          name: BaiLONGMAMy-macos-${{ matrix.arch }}
+          name: GAI-AI-macos-${{ matrix.arch }}
           path: |
             dist/*.dmg
+            dist/*.dmg.blockmap
+            dist/*.zip
+            dist/*.zip.blockmap
+            dist/latest-${{ matrix.arch }}-mac.yml
             dist/SHA256SUMS-macos-${{ matrix.arch }}.txt
           if-no-files-found: error
 
@@ -161,7 +170,7 @@ jobs:
 
       - name: Create combined checksums
         working-directory: release-assets
-        run: sha256sum *.exe *.dmg > SHA256SUMS.txt
+        run: sha256sum *.exe *.dmg *.zip > SHA256SUMS.txt
 
       - name: Create or update release
         shell: bash
@@ -174,5 +183,5 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --generate-notes \
-              --title "BaiLONGMAMy $release_tag"
+              --title "GAI AI $release_tag"
           fi

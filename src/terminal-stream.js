@@ -2,7 +2,7 @@ import { emitEvent } from './events.js'
 
 const MAX_CHUNKS = 800
 const MAX_TOTAL_CHARS = 120_000
-const DEFAULT_TITLE = 'Bailongma Terminal Stream'
+const DEFAULT_TITLE = 'GAI AI Terminal Stream'
 const sessions = new Map()
 
 function nowIso() {

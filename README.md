@@ -1,32 +1,32 @@
-![Bailongma](https://github.com/MrYouYouSBK/BaiLONGMAMy/blob/main/images/AGI128k.jpg)
+![GAI AI](https://github.com/MrYouYouSBK/BaiLONGMAMy/blob/main/images/AGI128k.jpg)
 
-# Bailongma
+# GAI AI
 
-> **BaiLONGMAMy Community Build** — 本仓库是基于 MIT License 源码维护的社区构建版，保留原作者版权与许可证。它不使用 `bailongma.top` 的 Pro 下载授权码；首次启动可以直接进入 Offline Lite，不需要 API Key、充值或预先安装本地模型。
+> **GAI AI 3.0 Community Build** — 从本版本起应用正式更名为 GAI AI。项目继续基于 MIT License 源码维护并保留原作者版权与许可证；旧版用户数据、应用 ID 与自动更新链保持兼容。首次启动直接进入 GAI Offline Super，不需要 API Key、充值或预先安装本地模型。
 
 ## 零配置运行与模型融合
 
-`v2.1.516` 起提供三层运行方式；`v2.1.517` 修复 Offline Lite 启动后反复显示「HEARTBEAT TICK／思考中」的问题，离线模式现在会跳过不适用的模型自检与快速 Awakening 心跳，打开后直接进入「已就绪」状态。
+`v3.0.0` 提供零配置离线核心与可选增强服务；默认不请求公网定位或热点源，打开后直接进入就绪状态。
 
-1. **Offline Lite（默认保底）**：无需 Key、无需充值、无需 Ollama，可使用时间／日期、基础计算、运行状态与使用说明。
-2. **GPT／DeepSeek 等云端模型（可选增强）**：用户有可用 API Key 时接入完整对话、推理与工具规划。
-3. **Ollama／LM Studio（可选增强）**：连接用户自己的 OpenAI-compatible 本地端点。
+1. **GAI Offline Super（默认）**：无需 Key、无需充值、无需 Ollama，内置计算、换算、摘要、文本统计、JSON、密码、清单、时间与系统状态能力。
+2. **OpenAI Codex（可选）**：直接使用 ChatGPT 帐户登录，无需在 GAI AI 内配置 API Key。
+3. **本地与云端模型（可选）**：自动检测 Ollama／LM Studio，也可连接 OpenAI-compatible、DeepSeek、MiniMax 等服务。
 
-如果已配置的云端模型因为余额、配额、凭证、限流或网络问题无法调用，用户消息会自动降级到 Offline Lite；应用不会因为模型不可用而停止运行。Offline Lite 是诚实标示的确定性基础助手，不会冒充 GPT，也不会承诺开放式问答和复杂推理能力。
+如果已配置模型因为余额、配额、凭证、限流或网络问题无法调用，消息会自动降级到 GAI Offline Super，应用不会因模型不可用而停止运行。
 
 ## 直接下载安装包
 
 前往 [GitHub Releases](https://github.com/MrYouYouSBK/BaiLONGMAMy/releases) 下载：
 
-- Windows 10/11 x64：`BaiLONGMAMy-Setup-<version>.exe`
-- Apple Silicon Mac（M1/M2/M3/M4/M5）：`BaiLONGMAMy-<version>-mac-arm64.dmg`
-- Intel Mac：`BaiLONGMAMy-<version>-mac-x64.dmg`
+- Windows 10/11 x64：`GAI-AI-Setup-<version>.exe`
+- Apple Silicon Mac（M1/M2/M3/M4/M5）：`GAI-AI-<version>-mac-arm64.dmg`
+- Intel Mac：`GAI-AI-<version>-mac-x64.dmg`
 
 每个版本都附带 `SHA256SUMS.txt`，可用于核对下载文件完整性。目前社区构建没有 Apple Developer ID 签名；首次在 macOS 打开时，如系统拦截，请在“系统设置 → 隐私与安全性”选择“仍要打开”。
 
 安装包由 [GitHub Actions](https://github.com/MrYouYouSBK/BaiLONGMAMy/actions/workflows/build-installers.yml) 在 Windows 与 macOS 官方托管环境中自动生成。代码合并到 `main` 后会按 `package.json` 版本自动创建或更新 `community-v*` Release；也可以手动运行工作流取得临时构建产物。
 
-Bailongma 是一个持续运行的桌面 AI Agent 项目。它不是一次问答结束就退出的聊天程序，而是由主循环驱动：有用户消息时优先处理，空闲时按节奏继续整理记忆、检查任务、刷新上下文，并把状态实时推送到 Brain UI。
+GAI AI 是一个持续运行、离线优先的桌面 AI Agent。它不是一次问答结束就退出的聊天程序，而是由主循环驱动：有用户消息时优先处理，空闲时按节奏继续整理记忆、检查任务、刷新上下文，并把状态实时推送到 Brain UI。
 
 项目由 Electron 桌面壳、本地 HTTP 服务、LLM 调用层、记忆系统、工具执行器、语音系统、社交连接器和 Brain UI 组成。它的目标是让一个本地 Agent 既能聊天，也能记住、行动、观察自己的运行状态，并通过工具完成文件、网页、媒体、提醒、任务和系统级操作。
 
@@ -35,7 +35,7 @@ Bailongma 是一个持续运行的桌面 AI Agent 项目。它不是一次问答
 - 持续运行的主循环：处理用户消息、后台消息、提醒、任务续跑和空闲心跳。
 - 记忆系统：基于本地 SQLite 持久化对话、记忆、行动日志、提醒、预取缓存、媒体历史和线程状态，并支持全文检索、语义补充、去重与合并。
 - 动态上下文注入：每轮对话前自动选择相关记忆、最近对话、用户画像、工具结果、UI 信号、预取内容和运行状态。
-- 多模型接入：内置零配置 Offline Lite，并可通过 OpenAI 兼容接口连接 DeepSeek、MiniMax、OpenAI、Qwen、Moonshot、Zhipu、MiMo 以及自定义服务。
+- 多模型接入：内置零配置 GAI Offline Super、ChatGPT 登录式 Codex，并可通过 OpenAI 兼容接口连接 DeepSeek、MiniMax、OpenAI、Qwen、Moonshot、Zhipu、MiMo 以及自定义服务。
 - 工具系统：按需注入工具，支持通信、文件系统、Shell、网页读取、搜索、媒体生成、记忆管理、UI 卡片、任务、提醒、本地 Agent 委托和系统操作。
 - Brain UI：提供聊天、思考流、记忆图、焦点线程、热点面板、文档面板、人物卡片、语音控制、设置页和 ACUI 卡片渲染。
 - 语音能力：支持云端语音识别和多种 TTS 服务，可在 UI 中配置语音输入、语音输出和声音参数。
@@ -168,7 +168,7 @@ http://127.0.0.1:3721
 
 ## 数据与持久化
 
-Bailongma 的长期状态主要保存在本地 SQLite 数据库中，包括：
+GAI AI 的长期状态主要保存在本地 SQLite 数据库中，包括：
 
 - 对话记录、参与者身份和用户画像。
 - 记忆节点、记忆关系、全文检索索引和可见性状态。

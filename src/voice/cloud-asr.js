@@ -13,6 +13,7 @@ import zlib from 'zlib'
 import { WebSocket } from 'ws'
 import { normalizeVoiceProvider } from '../config.js'
 import { createMacSpeechSession } from './macos-speech.js'
+import { createWindowsSpeechSession } from './windows-speech.js'
 
 // ─── 阿里云 Paraformer ───
 // 协议：run-task → PCM binary chunks → finish-task
@@ -475,12 +476,15 @@ function createVolcengineSession(config, onTranscript, onError, onClose, onEvent
 //           tencentAppId?, xunfeiAppId?, xunfeiApiKey?,
 //           volcAsrApiKey?, volcAsrAppKey?, volcAsrAccessKey?, volcAsrResourceId? }
 export function createCloudASRSession(config, onTranscript, onError, onClose, onEvent) {
-  const provider = normalizeVoiceProvider(config?.provider || config?.voiceProvider || 'aliyun', '')
+  const provider = normalizeVoiceProvider(config?.provider || config?.voiceProvider || 'local', '')
   const { lang = 'zh' } = config || {}
 
   if (provider === 'local') {
     if (process.platform === 'darwin') {
       return createMacSpeechSession({ ...config, lang }, onTranscript, onError, onClose)
+    }
+    if (process.platform === 'win32') {
+      return createWindowsSpeechSession({ ...config, lang }, onTranscript, onError, onClose)
     }
     onError(`本地语音识别暂不支持当前平台: ${process.platform}`)
     return null

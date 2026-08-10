@@ -29,7 +29,7 @@ function initWakeWord({ codeRoot, logDir }) {
   try {
     child = utilityProcess.fork(path.join(__dirname, 'kws-process.cjs'), [], {
       stdio: 'inherit',
-      serviceName: 'bailongma-kws',
+      serviceName: 'gai-ai-kws',
     })
     child.on('message', (msg) => {
       if (!msg) return

@@ -201,16 +201,38 @@ async function loadFresh(json) {
   assert(switched.provider === 'deepseek' && mod.config.apiKey === 'sk-deepseek-valid-key-1234567890', 'I: 无需重新输入 key 即可切回旧 provider')
 }
 
-// Scenario K: Offline Lite activates and persists without an API key or endpoint.
+// Scenario K: GAI Offline Super activates and persists without an API key or endpoint.
 {
   const mod = await loadFresh({ schemaVersion: 3 })
   const prepared = await mod.prepareActivation({ provider: 'offline' })
-  assert(prepared.provider === 'offline' && prepared.model === 'offline-lite', 'K: Offline Lite 无网络探测即可准备')
+  assert(prepared.provider === 'offline' && prepared.model === 'gai-offline-super', 'K: Offline Super 无网络探测即可准备')
   const activated = mod.commitPreparedActivation(prepared)
-  assert(activated.provider === 'offline', 'K: Offline Lite 正常激活')
-  assert(mod.config.needsActivation === false && mod.config.apiKey === 'offline', 'K: Offline Lite 不需要真实 API Key')
+  assert(activated.provider === 'offline', 'K: Offline Super 正常激活')
+  assert(mod.config.needsActivation === false && mod.config.apiKey === 'offline', 'K: Offline Super 不需要真实 API Key')
   const stored = JSON.parse(fs.readFileSync(path.join(llmDir, 'offline.json'), 'utf-8'))
-  assert(stored.model === 'offline-lite' && stored.apiKey === undefined, 'K: Offline Lite 配置不保存伪造的云端凭证')
+  assert(stored.model === 'gai-offline-super' && stored.apiKey === undefined, 'K: Offline Super 配置不保存伪造的雲端憑證')
+}
+
+// Scenario L: Codex Connector persists as a keyless ChatGPT-login provider.
+{
+  const mod = await loadFresh({ schemaVersion: 3 })
+  const prepared = await mod.prepareActivation({ provider: 'codex' })
+  assert(prepared.provider === 'codex' && prepared.model === 'codex-default', 'L: Codex 無 API Key 即可準備')
+  const activated = mod.commitPreparedActivation(prepared)
+  assert(activated.provider === 'codex' && mod.config.apiKey === 'chatgpt-login', 'L: Codex 使用 ChatGPT 登入標記')
+  const stored = JSON.parse(fs.readFileSync(path.join(llmDir, 'codex.json'), 'utf-8'))
+  assert(stored.model === 'codex-default' && stored.apiKey === undefined, 'L: Codex 不保存 API Key')
+}
+
+// Scenario M: a clean install starts in Offline Super without onboarding.
+{
+  fs.rmSync(configFile, { force: true })
+  fs.rmSync(llmDir, { recursive: true, force: true })
+  v += 1
+  const mod = await import(`./config.js?v=${v}`)
+  assert(mod.config.provider === 'offline' && mod.config.needsActivation === false, 'M: 全新安裝自動進入 Offline Super')
+  const stored = JSON.parse(fs.readFileSync(path.join(llmDir, 'offline.json'), 'utf-8'))
+  assert(stored.model === 'gai-offline-super', 'M: 零配置離線模式已持久化')
 }
 
 try { fs.rmSync(tmp, { recursive: true, force: true }) } catch {}

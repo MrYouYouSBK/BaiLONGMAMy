@@ -944,7 +944,7 @@ function execTerminalStream({
   action = 'write',
   text = '',
   stream_id = 'default',
-  title = 'Bailongma Terminal Stream',
+  title = 'GAI AI Terminal Stream',
   newline = true,
   level = 'info',
   format = '',
@@ -963,7 +963,7 @@ function execTerminalStream({
 
   const bridge = global.terminalStreamBridge
   const streamId = String(stream_id || 'default').trim() || 'default'
-  const cleanTitle = String(title || 'Bailongma Terminal Stream').trim() || 'Bailongma Terminal Stream'
+  const cleanTitle = String(title || 'GAI AI Terminal Stream').trim() || 'GAI AI Terminal Stream'
   const normalizedHoldOpen = normalizeOptionalBoolean(hold_open)
   const forceClose = normalizeOptionalBoolean(force) === true
 

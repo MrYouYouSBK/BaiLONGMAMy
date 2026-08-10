@@ -3,10 +3,11 @@ import { createWorldcupPanel } from './worldcup-panel.js';
 import { createTyphoonPanel } from './typhoon-panel.js';
 import { createPersonCardPanel } from './person-card-panel.js';
 import { createDocPanel } from './doc-panel.js';
+import { createGaiControlMarkup } from './gai-control-center.js';
 
 const createGraphStage = () => `
 <div class="grid-overlay"></div>
-<svg id="graph" aria-label="Longma 记忆节点图"></svg>
+<svg id="graph" aria-label="GAI AI memory graph"></svg>
 `;
 
 const createPrimaryPanel = () => `
@@ -14,29 +15,30 @@ const createPrimaryPanel = () => `
   <header class="panel-identity">
     <div class="brand-mark"></div>
     <div class="brand-copy">
-      <div class="eyebrow">认知界面</div>
-      <div class="brand-title" id="agent-brand-name">Longma AI Agent</div>
+      <div class="eyebrow" data-en="Cognitive Interface" data-zh="认知界面">Cognitive Interface</div>
+      <div class="brand-title" id="agent-brand-name">GAI AI</div>
     </div>
-    <button class="voice-btn" id="voice-btn" title="麦克风 开/关" type="button">🎤</button>
+    <button class="voice-btn" id="voice-btn" title="Microphone on/off" type="button">🎤</button>
+    <button class="camera-btn" id="camera-btn" title="Open camera" type="button">◉</button>
     <button class="video-btn" id="video-btn" title="视频模式 (V)" type="button" hidden>⊞</button>
     <button class="music-btn" id="music-btn" title="音乐模式 (M)" type="button" hidden>♪</button>
-    <button class="settings-btn" id="settings-btn" title="设置" type="button">⚙</button>
+    <button class="settings-btn" id="settings-btn" title="Settings" type="button">⚙</button>
   </header>
 
   <div class="stream-meta">
     <div>
-      <div class="stream-title-text">用户消息处理器</div>
+      <div class="stream-title-text" data-en="User message processor" data-zh="用户消息处理器">User message processor</div>
       <!-- <div class="stream-subtitle">user message · react</div> -->
     </div>
-    <span class="pill" id="pill-l1">实时</span>
+    <span class="pill" id="pill-l1" data-en="LIVE" data-zh="实时">LIVE</span>
   </div>
 
   <!-- AI 当前正在做什么：纯派生展示，从 tool_call 事件流自动归类，AI 不需要做任何额外动作。
        北极星：通信问题靠界面侧派生可视化解决，不逼 AI 学人开口。 -->
   <div class="ai-activity" id="ai-activity">
     <span class="ai-activity-dot" id="ai-activity-dot"></span>
-    <span class="ai-activity-label" id="ai-activity-label">已就绪</span>
-    <span class="ai-activity-detail" id="ai-activity-detail">· 输入文字或按住空格说话</span>
+    <span class="ai-activity-label" id="ai-activity-label">Ready</span>
+    <span class="ai-activity-detail" id="ai-activity-detail">· Type or hold Space to talk</span>
   </div>
 
   ${createVoicePanel()}
@@ -48,11 +50,11 @@ const createPrimaryPanel = () => `
   </div>
 
   <div class="panel-actions">
-    <button class="reset-view" id="reset-view-btn" type="button">重置节点图</button>
+    <button class="reset-view" id="reset-view-btn" type="button" data-en="Reset graph" data-zh="重置节点图">Reset graph</button>
 
     <section class="physics-control" id="physics-control">
       <button class="physics-toggle" id="physics-toggle" type="button" aria-expanded="false">
-        <span class="physics-toggle-label">图谱调节</span>
+        <span class="physics-toggle-label" data-en="Graph controls" data-zh="图谱调节">Graph controls</span>
         <span class="physics-toggle-icon">▾</span>
       </button>
       <div class="physics-panel" id="physics-panel">
@@ -140,14 +142,15 @@ const createConsole = () => `
   <div id="input-row">
     <div id="slash-menu" class="slash-menu" role="listbox" aria-label="命令" hidden></div>
     <span class="prompt-mark">▸</span>
-    <textarea id="msg-input" rows="1" placeholder="向 Longma 发送消息…（输入 / 调出命令，Shift+Enter 换行）" autocomplete="off"></textarea>
-    <button id="send-btn" type="button">发送</button>
+    <textarea id="msg-input" rows="1" placeholder="Message GAI AI… (/ commands, Shift+Enter for a new line)" autocomplete="off"></textarea>
+    <button id="send-btn" type="button" data-en="Send" data-zh="发送">Send</button>
   </div>
 </section>
 `;
 
 const createThemeSwitcher = () => `
 <div class="theme-switcher" id="theme-switcher">
+  <div class="theme-dot" data-t="amoled" title="AMOLED Black"></div>
   <div class="theme-dot active" data-t="midnight" title="Midnight Steel"></div>
   <div class="theme-dot" data-t="phosphor" title="Phosphor CRT"></div>
   <div class="theme-dot" data-t="violet" title="Violet Lab"></div>
@@ -163,31 +166,34 @@ const createTooltip = () => `
 
 const createSettingsModal = () => `
 <div class="settings-overlay" id="settings-overlay" hidden>
-  <div class="settings-modal" role="dialog" aria-modal="true" aria-label="设置">
+  <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
     <div class="settings-header">
-      <span class="settings-title">设置</span>
-      <button class="settings-close" id="settings-close" type="button" aria-label="关闭">×</button>
+      <span class="settings-title" data-en="GAI AI Settings" data-zh="GAI AI 设置">GAI AI Settings</span>
+      <button class="settings-close" id="settings-close" type="button" aria-label="Close">×</button>
     </div>
     <div class="settings-body">
 
       <!-- 侧栏导航 -->
       <nav class="settings-nav">
-        <button class="settings-nav-item active" data-tab="appearance" type="button">外观</button>
-        <button class="settings-nav-item" data-tab="llm" type="button">LLM 模型</button>
-        <button class="settings-nav-item" data-tab="media" type="button">媒体能力</button>
-        <button class="settings-nav-item" data-tab="social" type="button">社交媒体</button>
-        <button class="settings-nav-item" data-tab="voice" type="button">语音对话</button>
-        <button class="settings-nav-item" data-tab="web-search" type="button">上网搜索</button>
-        <button class="settings-nav-item" data-tab="security" type="button">安全沙箱</button>
-        <button class="settings-nav-item" data-tab="advanced" type="button">高级功能</button>
-        <button class="settings-nav-item" data-tab="update" type="button">更新</button>
+        <button class="settings-nav-item active" data-tab="gai-control" type="button" data-en="GAI Control" data-zh="GAI 控制中心">GAI Control</button>
+        <button class="settings-nav-item" data-tab="appearance" type="button" data-en="Appearance" data-zh="外观">Appearance</button>
+        <button class="settings-nav-item" data-tab="llm" type="button" data-en="LLM Models" data-zh="LLM 模型">LLM Models</button>
+        <button class="settings-nav-item" data-tab="media" type="button" data-en="Media" data-zh="媒体能力">Media</button>
+        <button class="settings-nav-item" data-tab="social" type="button" data-en="Social" data-zh="社交媒体">Social</button>
+        <button class="settings-nav-item" data-tab="voice" type="button" data-en="Voice" data-zh="语音对话">Voice</button>
+        <button class="settings-nav-item" data-tab="web-search" type="button" data-en="Search" data-zh="上网搜索">Search</button>
+        <button class="settings-nav-item" data-tab="security" type="button" data-en="Security" data-zh="安全沙箱">Security</button>
+        <button class="settings-nav-item" data-tab="advanced" type="button" data-en="Advanced" data-zh="高级功能">Advanced</button>
+        <button class="settings-nav-item" data-tab="update" type="button" data-en="Updates" data-zh="更新">Updates</button>
       </nav>
 
       <!-- 内容区 -->
       <div class="settings-content">
 
+        ${createGaiControlMarkup()}
+
         <!-- ── 外观 tab ── -->
-        <div class="settings-tab active" data-tab="appearance">
+        <div class="settings-tab" data-tab="appearance">
           <div class="settings-section">
             <div class="settings-section-label">主题</div>
             ${createThemeSwitcher()}
@@ -196,7 +202,7 @@ const createSettingsModal = () => `
             <div class="settings-section-label">AI 名字</div>
             <div class="settings-row">
               <label class="settings-label" for="settings-agent-name">显示名</label>
-              <input class="settings-input" id="settings-agent-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="小白龙">
+              <input class="settings-input" id="settings-agent-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="GAI AI">
             </div>
             <div class="settings-row-action">
               <button class="settings-save-btn" id="settings-save-agent-name" type="button">保存</button>
@@ -230,7 +236,8 @@ const createSettingsModal = () => `
               <label class="settings-label" for="settings-provider-select">提供商</label>
               <select class="settings-select" id="settings-provider-select">
                 <option value="auto">自动识别</option>
-                <option value="offline">Offline Lite（无需 Key）</option>
+                <option value="offline">GAI Offline Super（无需 Key）</option>
+                <option value="codex">OpenAI Codex（ChatGPT 登录，无需 API Key）</option>
                 <option value="deepseek">DeepSeek</option>
                 <option value="minimax">MiniMax</option>
                 <option value="mimo">小米 MiMo</option>
@@ -405,7 +412,7 @@ const createSettingsModal = () => `
             <div class="settings-row">
               <label class="settings-label" for="voice-provider-select">服务商</label>
               <select class="settings-select" id="voice-provider-select">
-                <option value="local">本机识别（macOS）</option>
+                <option value="local">Windows / macOS 本機識別（默認）</option>
                 <option value="aliyun">阿里云百炼（推荐）</option>
                 <option value="volcengine">火山引擎豆包 ASR</option>
                 <option value="tencent">腾讯云 ASR</option>
@@ -589,8 +596,8 @@ const createSettingsModal = () => `
             <div class="settings-row">
               <label class="settings-label" for="voice-lang-select">识别语言</label>
               <select class="settings-select" id="voice-lang-select">
+                <option value="en-US">English (US, default)</option>
                 <option value="zh-CN">中文（普通话）</option>
-                <option value="en-US">English (US)</option>
               </select>
             </div>
             <div class="settings-row">
@@ -718,7 +725,7 @@ const createSettingsModal = () => `
           </div>
           <div class="settings-section">
             <div class="settings-section-label">局域网访问</div>
-            <p class="settings-hint">允许同一局域网内的设备访问本机白龙马 API，用于多台白龙马互相通信。开启或关闭后需要重启应用生效。</p>
+            <p class="settings-hint">允許同一局域網內的設備訪問本機 GAI AI API。開啟或關閉後需要重啟應用生效。</p>
             <div class="settings-row">
               <label class="settings-label" for="security-lan-access">允许局域网访问</label>
               <label class="settings-toggle">
@@ -756,6 +763,8 @@ const createSettingsModal = () => `
             <div class="settings-row">
               <label class="settings-label" for="settings-map-provider">地图服务商</label>
               <select class="settings-select" id="settings-map-provider">
+                <option value="osm">OpenStreetMap（无需 Key）</option>
+                <option value="google">Google Maps</option>
                 <option value="amap">高德地图 JS API 2.0</option>
               </select>
             </div>
@@ -772,6 +781,7 @@ const createSettingsModal = () => `
               <button class="settings-save-btn" id="settings-save-map" type="button">保存地图配置</button>
               <button class="settings-save-btn" id="settings-clear-map" type="button" style="width:auto;padding:0 14px;background:transparent;border:1px solid var(--line);color:var(--ink2);">清除</button>
               <a href="https://console.amap.com/dev/key/app" target="_blank" rel="noreferrer" class="settings-map-link">申请高德 Key ↗</a>
+              <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noreferrer" class="settings-map-link">申请 Google Key ↗</a>
               <span class="settings-feedback" id="settings-map-feedback"></span>
             </div>
           </div>

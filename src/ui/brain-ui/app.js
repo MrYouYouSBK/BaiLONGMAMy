@@ -14,13 +14,14 @@ import { initWechatPopup, showWechatPopup } from "./wechat-popup.js";
 import { initFeishuPopup, showFeishuPopup } from "./feishu-popup.js";
 import { attachJarvisAudioGraph, attachJarvisFx, isFxEnabledForVoice, setFxEnabledForVoice, getJarvisFxParams, setJarvisFxParams, resetJarvisFxParams, isFxUnlocked, tryUnlockFx } from "./tts-fx.js";
 import { initAudioOutputRouting, applyOutputSink, listOutputDevices, getOutputPreference, setOutputPreference } from "./audio-output.js";
+import { initGaiControlCenter } from "./gai-control-center.js";
 renderBrainUiApp(document.body);
 const THEME_KEY = "jarvis-brain-ui-theme";
 const PHYSICS_STORAGE_KEY = "jarvis-brain-ui-physics";
 const ACTIVATION_WARMUP_KEY = "bailongma_activation_warmup_until";
 const UI_ZOOM_STORAGE_KEY = "bailongma_ui_zoom_factor";
 const MAX_CHAT_HISTORY = 60;
-const DEFAULT_AGENT_NAME = "小白龙";
+const DEFAULT_AGENT_NAME = "GAI AI";
 const DEFAULT_UI_ZOOM = 1.1;
 const MIN_UI_ZOOM = 0.8;
 const MAX_UI_ZOOM = 1.8;
@@ -149,7 +150,7 @@ function setAgentName(nextName) {
   const normalized = String(nextName || "").trim() || DEFAULT_AGENT_NAME;
   agentName = normalized;
   document.title = `${normalized} · Cognitive Surface`;
-  if (brandNameEl) brandNameEl.textContent = `${normalized} AI Agent`;
+  if (brandNameEl) brandNameEl.textContent = normalized === "GAI AI" ? normalized : `${normalized} · GAI AI`;
   if (graphEl) graphEl.setAttribute("aria-label", `${normalized} memory graph`);
   const input = document.getElementById("msg-input");
   if (input && !chat?.isComposerLocked?.() && document.activeElement === input) input.placeholder = defaultInputPlaceholder();
@@ -2442,6 +2443,7 @@ function initTTSSettings() {
   const volcAsrKeyToggle     = document.getElementById("voice-volc-apikey-toggle");
   const mapKeyInput          = document.getElementById("settings-amap-key");
   const mapSecurityInput     = document.getElementById("settings-amap-security");
+  const mapProvider          = document.getElementById("settings-map-provider");
   const saveMapBtn           = document.getElementById("settings-save-map");
   const clearMapBtn          = document.getElementById("settings-clear-map");
   const mapFeedback          = document.getElementById("settings-map-feedback");
@@ -2582,12 +2584,15 @@ function initTTSSettings() {
       setLlmKeyVisible(false);
       return;
     }
-    if (provider === "offline") {
+    if (provider === "offline" || provider === "codex") {
       if (customSection) customSection.style.display = "none";
-      if (modelRow) modelRow.style.display = "none";
+      if (modelRow) modelRow.style.display = provider === "codex" ? "" : "none";
       if (officialCustomModelRow) officialCustomModelRow.style.display = "none";
       if (llmKeyRow) llmKeyRow.style.display = "none";
       if (llmKeyInput) llmKeyInput.value = "";
+      if (provider === "codex" && cachedProviders?.codex) {
+        populateModelSelect(cachedProviders.codex.models, providerCfg.model || cachedProviders.codex.defaultModel);
+      }
       setLlmKeyVisible(false);
       return;
     }
@@ -3112,10 +3117,12 @@ function initTTSSettings() {
     try {
       const data = await fetch(`${API}/settings/map`).then(r => r.json());
       const map = data?.map || {};
+      if (mapProvider) mapProvider.value = map.provider || "osm";
       if (status) {
+        const labels = { osm: "OpenStreetMap", google: "Google Maps", amap: "高德地图" };
         status.textContent = map.configured
-          ? "高德地图 · 已配置"
-          : `高德地图 · Key ${map.keyConfigured ? "已配置" : "未配置"} / 安全密钥 ${map.securityConfigured ? "已配置" : "未配置"}`;
+          ? `${labels[map.provider] || map.provider} · 已配置`
+          : `${labels[map.provider] || map.provider} · 尚未完成配置`;
       }
       if (dot) {
         dot.textContent = "●";
@@ -3131,7 +3138,8 @@ function initTTSSettings() {
     saveMapBtn.addEventListener("click", async () => {
       const jsKey = mapKeyInput?.value?.trim() || "";
       const securityCode = mapSecurityInput?.value?.trim() || "";
-      if (!jsKey && !securityCode) {
+      const provider = mapProvider?.value || "osm";
+      if (provider !== "osm" && !jsKey && !securityCode) {
         showFeedback(mapFeedback, "请输入 Key 或安全密钥", true);
         return;
       }
@@ -3140,7 +3148,7 @@ function initTTSSettings() {
         const response = await fetch(`${API}/settings/map`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsKey, securityCode }),
+          body: JSON.stringify({ provider, jsKey, securityCode }),
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || "保存失败");
@@ -3163,7 +3171,7 @@ function initTTSSettings() {
         const response = await fetch(`${API}/settings/map`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clear: true }),
+          body: JSON.stringify({ provider: mapProvider?.value || "osm", clear: true }),
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || "清除失败");
@@ -3235,7 +3243,7 @@ function initTTSSettings() {
   async function loadVoiceSettings() {
     const langSelect = document.getElementById("voice-lang-select");
     const autoSend   = document.getElementById("voice-auto-send");
-    if (langSelect) langSelect.value = localStorage.getItem(VOICE_LANG_KEY) || "zh-CN";
+    if (langSelect) langSelect.value = localStorage.getItem(VOICE_LANG_KEY) || "en-US";
     if (autoSend) autoSend.checked = localStorage.getItem(VOICE_AUTO_SEND_KEY) !== "false";
     const autoMic = document.getElementById("voice-auto-mic");
     if (autoMic) autoMic.checked = localStorage.getItem(VOICE_AUTO_MIC_KEY) === "true";
@@ -3245,7 +3253,7 @@ function initTTSSettings() {
     await loadMicrophoneDevices();
     await loadOutputDevices();
 
-    let savedProvider = localStorage.getItem(VOICE_PROVIDER_KEY) || "aliyun";
+    let savedProvider = localStorage.getItem(VOICE_PROVIDER_KEY) || "local";
     try {
       const resp = await fetch("http://127.0.0.1:3721/settings/voice");
       const data = await resp.json().catch(() => ({}));
@@ -3269,11 +3277,11 @@ function initTTSSettings() {
 
   if (saveVoiceBtn) {
     saveVoiceBtn.addEventListener("click", async () => {
-      const lang      = document.getElementById("voice-lang-select")?.value || "zh-CN";
+      const lang      = document.getElementById("voice-lang-select")?.value || "en-US";
       const autoSend  = document.getElementById("voice-auto-send")?.checked ?? true;
       const autoMic   = document.getElementById("voice-auto-mic")?.checked ?? false;
       const threshold = parseFloat(voiceThreshSlider?.value ?? "0.008");
-      const provider  = voiceProviderSelect?.value || "aliyun";
+      const provider  = voiceProviderSelect?.value || "local";
       const micDeviceId = voiceMicSelect?.value || "";
 
       localStorage.setItem(VOICE_LANG_KEY,      lang);
@@ -3435,7 +3443,11 @@ function initTTSSettings() {
       const selectedCfg = cachedProviders?.[provider] || {};
       const body = { provider };
       if (provider === "offline") {
-        body.model = "offline-lite";
+        body.model = "gai-offline-super";
+      } else if (provider === "codex") {
+        body.model = modelSelect?.value === CUSTOM_MODEL_VALUE
+          ? officialCustomModelInput?.value?.trim() || "codex-default"
+          : modelSelect?.value || "codex-default";
       } else if (provider === "custom") {
         body.baseURL = document.getElementById("settings-custom-baseurl")?.value?.trim();
         body.model = document.getElementById("settings-custom-model")?.value?.trim();
@@ -3473,7 +3485,7 @@ function initTTSSettings() {
       });
       const data = await res.json();
       if (data.ok) {
-        showFeedback(llmFeedback, provider === "offline" ? "Offline Lite 已启用" : "已保存");
+        showFeedback(llmFeedback, provider === "offline" ? "GAI Offline Super 已启用" : "已保存");
         loadSettings();
       } else {
         showFeedback(llmFeedback, data.error || "保存失败", true);
@@ -3761,6 +3773,8 @@ function initTTSSettings() {
   });
 })();
 
+initGaiControlCenter();
+
 // ── Voice panel ──
 initVoicePanel({
   btnId:      "voice-btn",
@@ -3771,7 +3785,7 @@ initVoicePanel({
   getChatInput:  () => document.getElementById("msg-input"),
   getSendBtn:    () => document.getElementById("send-btn"),
   getSendMessage: (options) => chat?.send?.(options),
-  getLang:       () => localStorage.getItem("bailongma-voice-lang") || "zh-CN",
+  getLang:       () => localStorage.getItem("bailongma-voice-lang") || "en-US",
   getAutoSend:   () => localStorage.getItem("bailongma-voice-auto-send") !== "false",
   getAutoMic:    () => localStorage.getItem("bailongma-voice-auto-mic") === "true",
 });
@@ -3790,6 +3804,7 @@ initTyphoon();
 
 // ── Media modes (video / image) ──
 (function initMediaModes() {
+  const cameraBtn     = document.getElementById("camera-btn");
   const videoBtn      = document.getElementById("video-btn");
   const videoExitBtn  = document.getElementById("video-exit-btn");
   const videoFeed     = document.getElementById("video-feed");
@@ -3893,6 +3908,7 @@ initTyphoon();
   function stopCamera() {
     videoStream?.getTracks().forEach(t => t.stop());
     videoStream = null;
+    document.getElementById("camera-btn")?.classList.remove("active");
   }
 
   function setPanelVisible(visible) {
@@ -4010,8 +4026,10 @@ initTyphoon();
       }
       videoSurface?.classList.add("has-media");
       videoKind = "camera";
+      cameraBtn?.classList.add("active");
     } catch (e) {
       console.warn("Camera access failed:", e);
+      cameraBtn?.classList.remove("active");
     }
   }
 
@@ -4423,6 +4441,7 @@ initTyphoon();
   })();
 
   videoBtn?.addEventListener("click", toggleVideoPanelVisibility);
+  cameraBtn?.addEventListener("click", () => showCamera({ title: "GAI AI Camera" }));
   videoExitBtn?.addEventListener("click", closeAndDestroyVideo);
   imageExitBtn?.addEventListener("click", () => setImageModeActive(false));
 
@@ -4619,7 +4638,7 @@ initTyphoon();
   function openPanel(configured){
     setActive(true);
     hydrateHistory();   // 每次打开都拉一次历史，重建之前生成的视频队列
-    if(configured===false){ composeErr.textContent="尚未配置火山方舟（Seedance）API Key —— 把 key 发给小白龙即可（例如「火山视频 你的APIKey」），配置后就能在这里生成。"; composeErr.hidden=false; }
+    if(configured===false){ composeErr.textContent="尚未配置火山方舟（Seedance）API Key —— 可在 GAI AI 設定中配置後使用。"; composeErr.hidden=false; }
     else composeErr.hidden=true;
     setTimeout(function(){ try{ promptInput.focus(); }catch(e){} },60);
   }

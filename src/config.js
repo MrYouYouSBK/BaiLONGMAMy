@@ -12,6 +12,7 @@ export const MOONSHOT_PROVIDER = 'moonshot'
 export const ZHIPU_PROVIDER = 'zhipu'
 export const MIMO_PROVIDER = 'mimo'
 export const OFFLINE_PROVIDER = 'offline'
+export const CODEX_PROVIDER = 'codex'
 
 export const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro'
 export const DEFAULT_MINIMAX_MODEL = 'MiniMax-M2.7'
@@ -20,12 +21,21 @@ export const DEFAULT_QWEN_MODEL = 'qwen-turbo'
 export const DEFAULT_MOONSHOT_MODEL = 'kimi-k2.6'
 export const DEFAULT_ZHIPU_MODEL = 'glm-5.1'
 export const DEFAULT_MIMO_MODEL = 'mimo-v2.5-pro'
-export const DEFAULT_OFFLINE_MODEL = 'offline-lite'
+export const DEFAULT_OFFLINE_MODEL = 'gai-offline-super'
+export const DEFAULT_CODEX_MODEL = 'codex-default'
 
 export const OFFLINE_MODELS = [
   {
     id: DEFAULT_OFFLINE_MODEL,
-    label: 'Offline Lite（零配置基础模式）',
+    label: 'GAI Offline Super（零配置强化模式）',
+    deprecated: false,
+  },
+]
+
+export const CODEX_MODELS = [
+  {
+    id: DEFAULT_CODEX_MODEL,
+    label: 'OpenAI Codex · ChatGPT sign-in',
     deprecated: false,
   },
 ]
@@ -349,11 +359,19 @@ export const MIMO_MODELS = [
 
 const PROVIDER_CONFIG = {
   [OFFLINE_PROVIDER]: {
-    label: 'Offline Lite（无需 Key）',
+    label: 'GAI Offline Super（无需 Key）',
     baseURL: null,
     envVar: null,
     models: OFFLINE_MODELS,
     defaultModel: DEFAULT_OFFLINE_MODEL,
+    noApiKey: true,
+  },
+  [CODEX_PROVIDER]: {
+    label: 'OpenAI Codex（ChatGPT 登录，无 API Key）',
+    baseURL: null,
+    envVar: null,
+    models: CODEX_MODELS,
+    defaultModel: DEFAULT_CODEX_MODEL,
     noApiKey: true,
   },
   [DEEPSEEK_PROVIDER]: {
@@ -618,6 +636,14 @@ function resolveLlmRecord(raw, fallbackProvider) {
       baseURL: undefined,
     }
   }
+  if (provider === CODEX_PROVIDER) {
+    return {
+      provider,
+      apiKey: 'chatgpt-login',
+      model: normalizeModel(raw.model, provider),
+      baseURL: undefined,
+    }
+  }
   if (provider === 'custom') {
     if (typeof raw.baseURL !== 'string' || !raw.baseURL) return null
     if (typeof raw.model !== 'string' || !raw.model) return null
@@ -716,6 +742,14 @@ function persistLlmProviderConfig(record) {
     })
     return
   }
+  if (provider === CODEX_PROVIDER) {
+    writeLlmProviderConfig(provider, {
+      provider,
+      model: normalizeModel(record.model, provider),
+      activatedAt: record.activatedAt || new Date().toISOString(),
+    })
+    return
+  }
   if (provider === 'custom') {
     writeLlmProviderConfig('custom', {
       provider: 'custom',
@@ -770,7 +804,7 @@ const VOICE_KEY_PROVIDER = new Map(
   Object.entries(VOICE_PROVIDER_KEYS).flatMap(([provider, keys]) => keys.map((key) => [key, provider]))
 )
 
-export function normalizeVoiceProvider(provider, fallback = 'aliyun') {
+export function normalizeVoiceProvider(provider, fallback = 'local') {
   const raw = String(provider || '').trim().toLowerCase()
   const normalized = VOICE_PROVIDER_ALIASES[raw] || raw
   return VOICE_PROVIDERS.has(normalized) ? normalized : fallback
@@ -833,7 +867,7 @@ function readLegacyVoiceBlock(cfg = readExistingStoredConfig()) {
   return (cfg?.voice && typeof cfg.voice === 'object') ? cfg.voice : {}
 }
 
-function readActiveVoiceProvider(fallback = 'aliyun') {
+function readActiveVoiceProvider(fallback = 'local') {
   const active = readJsonObjectFile(getVoiceActiveFile())
   if (active?.provider) return normalizeVoiceProvider(active.provider, fallback)
   const legacy = readLegacyVoiceBlock()
@@ -847,7 +881,7 @@ function stripLegacyVoiceBlock(cfg) {
 
 function persistLegacyVoiceBlock(legacy) {
   if (!legacy || typeof legacy !== 'object') return
-  const activeProvider = writeActiveVoiceProvider(legacy.voiceProvider || legacy.provider || 'aliyun')
+  const activeProvider = writeActiveVoiceProvider(legacy.voiceProvider || legacy.provider || 'local')
   const buckets = new Map()
   for (const [key, value] of Object.entries(legacy)) {
     if (key === 'voiceProvider' || key === 'provider') continue
@@ -914,6 +948,14 @@ function applyConfig(provider, apiKey, model, customBaseURL) {
     config.provider = OFFLINE_PROVIDER
     config.model = normalizeModel(model, OFFLINE_PROVIDER)
     config.apiKey = 'offline'
+    config.baseURL = null
+    config.needsActivation = false
+    return
+  }
+  if (provider === CODEX_PROVIDER) {
+    config.provider = CODEX_PROVIDER
+    config.model = normalizeModel(model, CODEX_PROVIDER)
+    config.apiKey = 'chatgpt-login'
     config.baseURL = null
     config.needsActivation = false
     return
@@ -1031,6 +1073,7 @@ runConfigMigrations()
 // 再单独判断 LLM 块能否激活。这样即便 LLM 块因 provider 改名/缺字段而不可用，
 // 也不会连带把沙盒开关、温度等其它配置一起重置——升级后最常见的"配置全没了"根因。
 const parsedConfig = readParsedConfig()
+const configFileExists = fs.existsSync(paths.configFile)
 if (parsedConfig) {
   if (typeof parsedConfig.temperature === 'number' && parsedConfig.temperature >= 0 && parsedConfig.temperature <= 2) {
     config.temperature = parsedConfig.temperature
@@ -1067,6 +1110,19 @@ if (storedLlm) {
   if (fromEnv) applyConfig(fromEnv.provider, fromEnv.apiKey, fromEnv.model)
 }
 
+// A clean install or a valid config with no selected provider must be useful
+// immediately. Keep corrupt/unknown-provider files untouched for diagnosis,
+// but make the ordinary first-run path persist GAI Offline Super automatically.
+if (
+  config.needsActivation
+  && ((!configFileExists && !parsedConfig) || (parsedConfig && !parsedConfig.provider))
+) {
+  const model = normalizeModel(null, OFFLINE_PROVIDER)
+  applyConfig(OFFLINE_PROVIDER, 'offline', model)
+  persistLlmProviderConfig({ provider: OFFLINE_PROVIDER, model, activatedAt: new Date().toISOString() })
+  writeActiveLlmProvider(OFFLINE_PROVIDER)
+}
+
 // At startup, copy social credentials from the config file into process.env so connectors can read them
 ;(function loadSocialEnv() {
   try {
@@ -1090,6 +1146,16 @@ export async function prepareActivation({ provider = AUTO_PROVIDER, apiKey, mode
       model: normalizeModel(model, OFFLINE_PROVIDER),
       baseURL: undefined,
       models: OFFLINE_MODELS,
+    }
+  }
+
+  if (p === CODEX_PROVIDER) {
+    return {
+      provider: CODEX_PROVIDER,
+      apiKey: 'chatgpt-login',
+      model: normalizeModel(model, CODEX_PROVIDER),
+      baseURL: undefined,
+      models: CODEX_MODELS,
     }
   }
 
@@ -1187,6 +1253,22 @@ export function commitPreparedActivation(prepared) {
       provider: OFFLINE_PROVIDER,
       model: normalizedModel,
       models: OFFLINE_MODELS,
+    }
+  }
+
+  if (p === CODEX_PROVIDER) {
+    const normalizedModel = normalizeModel(prepared.model, CODEX_PROVIDER)
+    applyConfig(CODEX_PROVIDER, 'chatgpt-login', normalizedModel)
+    persistLlmProviderConfig({
+      provider: CODEX_PROVIDER,
+      model: normalizedModel,
+      activatedAt: new Date().toISOString(),
+    })
+    writeActiveLlmProvider(CODEX_PROVIDER)
+    return {
+      provider: CODEX_PROVIDER,
+      model: normalizedModel,
+      models: CODEX_MODELS,
     }
   }
 
@@ -1372,6 +1454,10 @@ export async function saveLLMSettings({ provider = AUTO_PROVIDER, apiKey, model,
 
   if (p === OFFLINE_PROVIDER) {
     return commitPreparedActivation(await prepareActivation({ provider: OFFLINE_PROVIDER, model }))
+  }
+
+  if (p === CODEX_PROVIDER) {
+    return commitPreparedActivation(await prepareActivation({ provider: CODEX_PROVIDER, model }))
   }
 
   if (p === 'custom') {
@@ -1618,7 +1704,7 @@ const CHAT_PROVIDERS_WITH_AMBIGUOUS_SK_KEYS = new Set([
 ])
 
 export function getVoiceConfig() {
-  const result = { voiceProvider: readActiveVoiceProvider('aliyun') }
+  const result = { voiceProvider: readActiveVoiceProvider('local') }
   for (const key of VOICE_CONFIG_KEYS) {
     if (key === 'voiceProvider') continue
     const provider = VOICE_KEY_PROVIDER.get(key) || result.voiceProvider
@@ -1640,7 +1726,7 @@ export function getVoiceConfig() {
 }
 
 export function getVoiceRuntimeConfig(providerHint = null) {
-  const provider = readActiveVoiceProvider(providerHint || 'aliyun')
+  const provider = readActiveVoiceProvider(providerHint || 'local')
   const stored = readVoiceProviderConfig(provider)
   return {
     ...stored,
@@ -1652,7 +1738,7 @@ export function getVoiceRuntimeConfig(providerHint = null) {
 export function setVoiceConfig(updates) {
   const existing = readExistingStoredConfig()
   const { voice: legacyVoice, ...baseConfig } = existing
-  let activeProvider = readActiveVoiceProvider(legacyVoice?.voiceProvider || legacyVoice?.provider || 'aliyun')
+  let activeProvider = readActiveVoiceProvider(legacyVoice?.voiceProvider || legacyVoice?.provider || 'local')
   const requestedProvider = updates?.voiceProvider ?? updates?.provider
   if (requestedProvider !== undefined) {
     activeProvider = normalizeVoiceProvider(requestedProvider, activeProvider)
@@ -1861,7 +1947,10 @@ const WEB_SEARCH_KEY_MAP = {
   jinaKey:    'jina_api_key',
   braveKey:   'brave_api_key',
   tavilyKey:  'tavily_api_key',
+  preferredEngine: 'search_preferred_engine',
 }
+
+const WEB_SEARCH_ENGINES = new Set(['auto', 'google', 'brave', 'bing', 'duckduckgo', 'tavily', 'jina', 'searxng'])
 
 function readWebSearchBlock() {
   try {
@@ -1872,9 +1961,10 @@ function readWebSearchBlock() {
       jinaKey:    typeof raw.jina_api_key   === 'string' ? raw.jina_api_key   : '',
       braveKey:   typeof raw.brave_api_key  === 'string' ? raw.brave_api_key  : '',
       tavilyKey:  typeof raw.tavily_api_key === 'string' ? raw.tavily_api_key : '',
+      preferredEngine: WEB_SEARCH_ENGINES.has(raw.search_preferred_engine) ? raw.search_preferred_engine : 'auto',
     }
   } catch {
-    return { serperKey: '', searxngUrl: '', jinaKey: '', braveKey: '', tavilyKey: '' }
+    return { serperKey: '', searxngUrl: '', jinaKey: '', braveKey: '', tavilyKey: '', preferredEngine: 'auto' }
   }
 }
 
@@ -1902,6 +1992,7 @@ export function getWebSearchConfig() {
     braveFromEnv:     !stored.braveKey   && !!envBrave,
     tavilyFromEnv:    !stored.tavilyKey  && !!envTavily,
     searxngFromEnv:   !stored.searxngUrl && !!envSearxng,
+    preferredEngine: stored.preferredEngine,
   }
 }
 
@@ -1914,6 +2005,7 @@ export function getWebSearchCredentials() {
     jinaKey:    stored.jinaKey    || process.env.JINA_API_KEY   || '',
     braveKey:   stored.braveKey   || process.env.BRAVE_API_KEY  || '',
     tavilyKey:  stored.tavilyKey  || process.env.TAVILY_API_KEY || '',
+    preferredEngine: stored.preferredEngine || 'auto',
   }
 }
 
@@ -1924,6 +2016,10 @@ export function setWebSearchConfig(updates) {
     const cfgField = WEB_SEARCH_KEY_MAP[key]
     if (!cfgField) continue
     const trimmed = String(val || '').trim()
+    if (key === 'preferredEngine') {
+      next[cfgField] = WEB_SEARCH_ENGINES.has(trimmed) ? trimmed : 'auto'
+      continue
+    }
     if (key === 'searxngUrl' && trimmed && !/^https?:\/\//i.test(trimmed)) {
       throw new Error('searxngUrl must start with http:// or https://')
     }

@@ -266,7 +266,9 @@ function getBattery() {
 
 /** 从网卡列表中取第一个非 loopback 的 IPv4 地址，跨平台 */
 function getLocalIP() {
-  const ifaces = os.networkInterfaces()
+  let ifaces
+  try { ifaces = os.networkInterfaces() }
+  catch { return null }
   for (const addrs of Object.values(ifaces)) {
     for (const addr of (addrs || [])) {
       if (addr.family === 'IPv4' && !addr.internal) return addr.address
