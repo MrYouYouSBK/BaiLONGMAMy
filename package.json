@@ -1,7 +1,7 @@
 {
   "name": "gai-ai",
   "productName": "GAI AI",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "A bilingual, offline-first personal AI for Windows and macOS",
   "type": "module",
   "main": "electron/main.cjs",
@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/MrYouYouSBK/BaiLONGMAMy.git"
+    "url": "https://github.com/MrYouYouSBK/GAI_Ai.My.git"
   },
   "engines": {
     "node": ">=22"
@@ -59,7 +59,8 @@
     "smoke:tool-factory-web": "node scripts/smoke-tool-factory-web-e2e.mjs",
     "smoke:brain-ui": "node scripts/smoke-brain-ui.mjs",
     "smoke:social": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:ELECTRON_RUN_AS_NODE='1'; .\\node_modules\\.bin\\electron.cmd .\\scripts\\smoke-social.mjs\"",
-    "smoke:feishu-ws": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:ELECTRON_RUN_AS_NODE='1'; .\\node_modules\\.bin\\electron.cmd .\\scripts\\smoke-feishu-ws.mjs\""
+    "smoke:feishu-ws": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:ELECTRON_RUN_AS_NODE='1'; .\\node_modules\\.bin\\electron.cmd .\\scripts\\smoke-feishu-ws.mjs\"",
+    "verify:mac": "node scripts/verify-mac-build.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.0.0",
@@ -168,20 +169,8 @@
     "mac": {
       "icon": "build/icon.icns",
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
+        "dmg",
+        "zip"
       ],
       "category": "public.app-category.productivity",
       "artifactName": "GAI-AI-${version}-mac-${arch}.${ext}",
@@ -195,7 +184,7 @@
       {
         "provider": "github",
         "owner": "MrYouYouSBK",
-        "repo": "BaiLONGMAMy",
+        "repo": "GAI_Ai.My",
         "releaseType": "release"
       }
     ]
