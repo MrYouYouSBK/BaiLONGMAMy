@@ -35,8 +35,8 @@ const createPrimaryPanel = () => `
        北极星：通信问题靠界面侧派生可视化解决，不逼 AI 学人开口。 -->
   <div class="ai-activity" id="ai-activity">
     <span class="ai-activity-dot" id="ai-activity-dot"></span>
-    <span class="ai-activity-label" id="ai-activity-label">空闲</span>
-    <span class="ai-activity-detail" id="ai-activity-detail"></span>
+    <span class="ai-activity-label" id="ai-activity-label">已就绪</span>
+    <span class="ai-activity-detail" id="ai-activity-detail">· 输入文字或按住空格说话</span>
   </div>
 
   ${createVoicePanel()}

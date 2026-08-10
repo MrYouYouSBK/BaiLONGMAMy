@@ -8,6 +8,17 @@ import {
   evaluateOfflineExpression,
   isOfflineFallbackError,
 } from './offline-assistant.js'
+import { getProviderRuntimePolicy } from './runtime/provider-mode-policy.js'
+
+const offlineRuntime = getProviderRuntimePolicy('offline')
+assert.equal(offlineRuntime.runImmediateStartupTick, false, 'Offline Lite skips the no-op immediate startup Tick')
+assert.equal(offlineRuntime.runStartupSelfCheck, false, 'Offline Lite skips model-driven startup self-checks')
+assert.equal(offlineRuntime.runAwakeningTicks, false, 'Offline Lite skips rapid awakening heartbeats')
+
+const onlineRuntime = getProviderRuntimePolicy('deepseek')
+assert.equal(onlineRuntime.runImmediateStartupTick, true, 'model-backed providers retain startup behavior')
+assert.equal(onlineRuntime.runStartupSelfCheck, true, 'model-backed providers retain startup self-checks')
+assert.equal(onlineRuntime.runAwakeningTicks, true, 'model-backed providers retain awakening heartbeats')
 
 assert.equal(evaluateOfflineExpression('(1250 + 88) * 3'), 4014)
 assert.equal(evaluateOfflineExpression('2^3^2'), 512)
