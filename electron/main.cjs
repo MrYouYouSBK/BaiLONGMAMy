@@ -15,7 +15,7 @@ if (IS_WIN) {
   } catch (_) {}
 }
 
-const { app, BrowserWindow, shell, dialog, Menu, ipcMain, Tray, nativeImage, clipboard } = require('electron')
+const { app, BrowserWindow, shell, dialog, Menu, ipcMain, Tray, nativeImage, clipboard, systemPreferences } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const net = require('net')
@@ -44,6 +44,18 @@ if (PORTABLE_USER_DIR) {
   try { fs.mkdirSync(PORTABLE_USER_DIR, { recursive: true }) } catch {}
   app.setPath('userData', PORTABLE_USER_DIR)
   process.env.BAILONGMA_USER_DIR ||= PORTABLE_USER_DIR
+} else {
+  // GAI AI v3 keeps the existing v2 profile so settings, memory and downloaded
+  // local assets survive the product rename and in-place updater migration.
+  const appDataRoot = app.getPath('appData')
+  const legacyCandidates = [
+    path.join(appDataRoot, 'BaiLONGMAMy'),
+    path.join(appDataRoot, 'bailongmamy'),
+  ]
+  const legacyUserDir = legacyCandidates.find(candidate => {
+    try { return fs.existsSync(candidate) && fs.statSync(candidate).isDirectory() } catch { return false }
+  })
+  if (legacyUserDir) app.setPath('userData', legacyUserDir)
 }
 
 const USER_DIR = app.getPath('userData')
@@ -53,11 +65,12 @@ const BACKEND_ENTRY = path.join(CODE_ROOT, 'src', 'index.js')
 const STARTUP_PAGE = path.join(__dirname, 'startup.html')
 
 const STARTUP_STEPS = [
-  { id: 'port', label: '准备本地端口', detail: '锁定 3721 或备用端口' },
-  { id: 'core', label: '启动本地核心', detail: '加载 Bailongma runtime' },
-  { id: 'resources', label: '准备工作区', detail: '复制沙箱与音乐资源' },
-  { id: 'tools', label: '加载工具槽', detail: '恢复已安装能力' },
-  { id: 'api', label: '启动本地 API', detail: 'HTTP / SSE / WebSocket' },
+  { id: 'window', label: 'Open GAI AI', detail: 'Initialize the desktop surface' },
+  { id: 'port', label: 'Prepare local port', detail: 'Lock port 3721 or a safe fallback' },
+  { id: 'core', label: 'Start offline core', detail: 'Load GAI Offline Super runtime' },
+  { id: 'api', label: 'Start local API', detail: 'HTTP / SSE / WebSocket' },
+  { id: 'devices', label: 'Check devices', detail: 'Microphone and camera status' },
+  { id: 'interface', label: 'Open Control Center', detail: 'Load bilingual GAI AI interface' },
 ]
 
 const startupProgressState = {
@@ -67,7 +80,7 @@ const startupProgressState = {
   failed: false,
   percent: 0,
   activeStepId: null,
-  message: '正在打开 Bailongma',
+  message: 'Opening GAI AI',
   steps: STARTUP_STEPS.map(step => ({ ...step, status: 'pending', startedAt: null, endedAt: null })),
 }
 
@@ -279,7 +292,7 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err?.stack || err?.message || String(err))
 })
-console.log(`[main] Bailongma ${app.getVersion()} starting, logs → ${LOG_FILE}`)
+console.log(`[main] GAI AI ${app.getVersion()} starting, logs → ${LOG_FILE}`)
 
 // ── GPU 适配器偏好（Windows 多显卡：核显 + 独显笔记本） ──
 // Windows 的逐应用显卡偏好存在 HKCU\...\DirectX\UserGpuPreferences
@@ -354,6 +367,29 @@ function sendUpdaterStatus(payload = {}) {
   })
 }
 
+function getMediaDeviceStatus() {
+  const read = (kind) => {
+    try {
+      const value = systemPreferences.getMediaAccessStatus?.(kind)
+      return value || 'unknown'
+    } catch {
+      return 'unknown'
+    }
+  }
+  return {
+    platform: PLATFORM,
+    microphone: read('microphone'),
+    camera: read('camera'),
+    checkedAt: new Date().toISOString(),
+  }
+}
+
+function formatDeviceStatus(status = getMediaDeviceStatus()) {
+  const mic = status.microphone === 'granted' ? 'ready' : status.microphone
+  const camera = status.camera === 'granted' ? 'ready' : status.camera
+  return `Microphone: ${mic} · Camera: ${camera}`
+}
+
 const EXPECTED_BETTER_SQLITE3_VERSION = '12.8.0'
 
 function validatePackagedNativeModules() {
@@ -397,7 +433,7 @@ function validatePackagedNativeModules() {
   }
 
   if (issues.length) {
-    throw new Error(`Packaged native module integrity check failed:\n${issues.join('\n')}\nPlease close Bailongma and reinstall it with the official installer.`)
+    throw new Error(`Packaged native module integrity check failed:\n${issues.join('\n')}\nPlease close GAI AI and reinstall it with the official installer.`)
   }
 }
 
@@ -466,17 +502,17 @@ function waitForBackend(port, timeoutMs = 30000) {
 
 async function loadStartupPage() {
   if (!mainWindow || mainWindow.isDestroyed()) return
-  emitStartupProgress({ id: 'window', status: 'running', message: '正在打开桌面窗口' })
+  emitStartupProgress({ id: 'window', status: 'running', message: 'Opening desktop window' })
   await mainWindow.loadFile(STARTUP_PAGE)
-  emitStartupProgress({ id: 'window', status: 'done', message: '桌面窗口已打开' })
+  emitStartupProgress({ id: 'window', status: 'done', message: 'Desktop window ready' })
 }
 
 async function loadMainApp() {
   if (!mainWindow || mainWindow.isDestroyed()) return
   if (!backendPort) throw new Error('Backend port is not ready')
-  emitStartupProgress({ id: 'interface', status: 'running', message: '正在进入界面' })
+  emitStartupProgress({ id: 'interface', status: 'running', message: 'Opening GAI AI Control Center' })
   await mainWindow.loadURL(`http://127.0.0.1:${backendPort}/`)
-  emitStartupProgress({ id: 'interface', status: 'done', completed: true, message: '启动完成' })
+  emitStartupProgress({ id: 'interface', status: 'done', completed: true, message: 'GAI AI is ready' })
 }
 
 async function createWindow({ loadStartup = true } = {}) {
@@ -486,7 +522,7 @@ async function createWindow({ loadStartup = true } = {}) {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#0b0b0e',
-    title: 'Bailongma',
+    title: 'GAI AI',
     icon: getAppIconPath(),
     webPreferences: {
       contextIsolation: true,
@@ -574,16 +610,16 @@ function setupTray() {
   const trayImage = nativeImage.createFromPath(getAppIconPath({ trayIcon: true }))
   if (IS_MAC) trayImage.setTemplateImage(true)
   tray = new Tray(trayImage)
-  tray.setToolTip('Bailongma')
+  tray.setToolTip('GAI AI')
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: '显示主界面',
+      label: 'Open GAI AI',
       click: () => { showMainWindow().catch(() => {}) },
     },
     { type: 'separator' },
     {
-      label: '退出',
+      label: 'Quit',
       click: () => {
         app.isQuiting = true
         app.quit()
@@ -1038,8 +1074,8 @@ function normalizeTerminalStreamId(value = 'default') {
 }
 
 function createTerminalStreamWindow(payload = {}) {
-  const { title = 'Bailongma Terminal Stream', stream_id = 'default' } = payload
-  const cleanTitle = String(title || 'Bailongma Terminal Stream').slice(0, 120)
+  const { title = 'GAI AI Terminal Stream', stream_id = 'default' } = payload
+  const cleanTitle = String(title || 'GAI AI Terminal Stream').slice(0, 120)
   const streamId = normalizeTerminalStreamId(stream_id)
   const url = `http://127.0.0.1:${backendPort}/terminal-stream?stream_id=${encodeURIComponent(streamId)}`
   const focusWindow = payload.focus !== false
@@ -1206,10 +1242,10 @@ function setupAutoUpdater() {
     return
   }
 
-  autoUpdater.autoDownload = false
-  // Avoid applying an already downloaded update while Windows is shutting down.
-  // The renderer still installs explicitly through updater:quit-and-install.
-  autoUpdater.autoInstallOnAppQuit = false
+  if (IS_MAC) autoUpdater.channel = `latest-${process.arch}`
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.autoRunAppAfterInstall = true
 
   autoUpdater.on('checking-for-update', () => {
     sendUpdaterStatus({ stage: 'checking' })
@@ -1217,7 +1253,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-available', info => {
     console.log('[updater] update available', info?.version)
-    sendUpdaterStatus({ stage: 'available', version: info?.version })
+    sendUpdaterStatus({ stage: 'available', version: info?.version, automatic: true })
   })
 
   autoUpdater.on('download-progress', progress => {
@@ -1231,7 +1267,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', info => {
     console.log('[updater] update downloaded', info?.version)
-    sendUpdaterStatus({ stage: 'downloaded', version: info?.version })
+    sendUpdaterStatus({ stage: 'downloaded', version: info?.version, installOnQuit: true, automatic: true })
   })
 
   autoUpdater.on('update-not-available', info => {
@@ -1253,11 +1289,30 @@ function setupAutoUpdater() {
       // 用户会卡在「永远没有更新」且无任何痕迹。这里至少落到日志，便于排查。
       console.warn('[updater] initial check failed', err?.message || err)
     })
+    const interval = setInterval(() => {
+      autoUpdater.checkForUpdates().catch(err => {
+        console.warn('[updater] periodic check failed', err?.message || err)
+      })
+    }, 6 * 60 * 60 * 1000)
+    interval.unref?.()
   }
 }
 
 ipcMain.handle('app:get-version', () => app.getVersion())
 ipcMain.handle('startup:get-progress', () => cloneStartupProgressState())
+ipcMain.handle('devices:get-status', () => getMediaDeviceStatus())
+ipcMain.handle('devices:request-access', async (_event, kind) => {
+  const normalized = kind === 'camera' ? 'camera' : 'microphone'
+  if (!IS_MAC || typeof systemPreferences.askForMediaAccess !== 'function') {
+    return { ok: true, requiresRendererPrompt: true, ...getMediaDeviceStatus() }
+  }
+  try {
+    const granted = await systemPreferences.askForMediaAccess(normalized)
+    return { ok: granted, granted, ...getMediaDeviceStatus() }
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error), ...getMediaDeviceStatus() }
+  }
+})
 
 ipcMain.handle('system-screenshot:get-latest', async (_event, options = {}) => {
   const maxAgeMs = Number(options?.maxAgeMs || 15 * 60 * 1000)
@@ -1371,21 +1426,25 @@ app.whenReady().then(async () => {
   await createWindow({ loadStartup: true })
 
   try {
-    emitStartupProgress({ id: 'port', status: 'running', message: '正在准备本地端口' })
+    emitStartupProgress({ id: 'port', status: 'running', message: 'Preparing local port' })
     backendPort = await findFreePort(3721)
-    emitStartupProgress({ id: 'port', status: 'done', detail: `本地端口 ${backendPort} 已准备` })
+    emitStartupProgress({ id: 'port', status: 'done', detail: `Local port ${backendPort} is ready` })
 
-    emitStartupProgress({ id: 'core', status: 'running', message: '正在启动本地核心' })
+    emitStartupProgress({ id: 'core', status: 'running', message: 'Starting GAI Offline Super' })
     await bootstrapBackend(backendPort)
-    emitStartupProgress({ id: 'core', status: 'done', message: '本地核心已启动' })
+    emitStartupProgress({ id: 'core', status: 'done', message: 'Offline core is ready' })
 
-    emitStartupProgress({ id: 'api', status: 'running', detail: '等待 activation-status', message: '正在确认本地 API 就绪' })
+    emitStartupProgress({ id: 'api', status: 'running', detail: 'Waiting for activation-status', message: 'Checking local API' })
     await waitForBackend(backendPort)
-    emitStartupProgress({ id: 'api', status: 'done', detail: `本地 API 已监听 ${backendPort}`, message: '本地 API 已启动' })
+    emitStartupProgress({ id: 'api', status: 'done', detail: `Local API is listening on ${backendPort}`, message: 'Local API is ready' })
+
+    emitStartupProgress({ id: 'devices', status: 'running', message: 'Checking microphone and camera' })
+    const deviceStatus = getMediaDeviceStatus()
+    emitStartupProgress({ id: 'devices', status: 'done', detail: formatDeviceStatus(deviceStatus), message: 'Device status checked' })
   } catch (err) {
     console.error(`[main] Backend startup failed on port ${backendPort || 'unknown'}`, err?.stack || err?.message || err)
-    emitStartupProgress({ id: 'core', status: 'error', error: true, message: `启动失败: ${err.message}` })
-    dialog.showErrorBox('Startup failed', `Unable to start the Bailongma backend:\n${err.message}`)
+    emitStartupProgress({ id: 'core', status: 'error', error: true, message: `Startup failed: ${err.message}` })
+    dialog.showErrorBox('Startup failed', `Unable to start the GAI AI backend:\n${err.message}`)
     app.quit()
     return
   }
@@ -1393,9 +1452,9 @@ app.whenReady().then(async () => {
   try {
     await loadMainApp()
   } catch (err) {
-    console.error('[main] Failed to load Bailongma UI', err?.stack || err?.message || err)
-    emitStartupProgress({ id: 'interface', status: 'error', error: true, message: `进入界面失败: ${err.message}` })
-    dialog.showErrorBox('Startup failed', `Unable to load the Bailongma interface:\n${err.message}`)
+    console.error('[main] Failed to load GAI AI UI', err?.stack || err?.message || err)
+    emitStartupProgress({ id: 'interface', status: 'error', error: true, message: `Could not open GAI AI: ${err.message}` })
+    dialog.showErrorBox('Startup failed', `Unable to load the GAI AI interface:\n${err.message}`)
     app.quit()
     return
   }

@@ -135,6 +135,36 @@ function createServer() {
       return
     }
 
+    if (url.pathname === '/settings/local-ai') {
+      sendJson(res, { ok: true, localAI: { available: false, providers: [], checkedAt: new Date().toISOString() } })
+      return
+    }
+
+    if (url.pathname === '/settings/codex') {
+      sendJson(res, { ok: true, codex: { installed: true, signedIn: false, status: 'Not signed in' } })
+      return
+    }
+
+    if (url.pathname === '/settings/map') {
+      sendJson(res, { ok: true, map: { provider: 'osm', configured: true } })
+      return
+    }
+
+    if (url.pathname === '/settings/web-search') {
+      sendJson(res, { ok: true, webSearch: { preferredEngine: 'auto' } })
+      return
+    }
+
+    if (url.pathname === '/settings/voice') {
+      sendJson(res, { ok: true, voice: { voiceProvider: 'local' } })
+      return
+    }
+
+    if (url.pathname === '/settings/media-provider') {
+      sendJson(res, { ok: true, media: { provider: 'local', openaiBaseURL: 'https://api.openai.com/v1', openaiModel: 'gpt-image-1', stableDiffusionBaseURL: 'http://127.0.0.1:7860' } })
+      return
+    }
+
     if (url.pathname === '/hotspots') {
       sendJson(res, {
         ok: true,

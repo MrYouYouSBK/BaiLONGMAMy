@@ -248,7 +248,7 @@ export async function runInjector({ message, state, hint = '', currentChannel = 
 
   // 自我快照：常驻的"你刚才是怎样的你"。不分 L1/L2 / 不分 TICK，只要有 jarvis 历史就出。
   // 注入器拿 agent_name 用作身份锚的开头（"你是 小白龙。..."）。
-  const agentName = getConfig('agent_name') || '小白龙'
+  const agentName = getConfig('agent_name') || 'GAI AI'
   const selfSnapshot = computeSelfSnapshot({ conversationWindow, actionLog, agentName })
   const selfEvolution = shouldInjectSelfEvolutionContext(messageBody, isTickMessage)
     ? formatSelfEvolutionForPrompt({ maxRecent: isTickMessage ? 3 : 5 })

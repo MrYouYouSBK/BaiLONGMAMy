@@ -443,7 +443,8 @@ export async function execWebSearch(args, context = {}) {
   const limit = Math.max(1, Math.min(Number(args.limit) || 5, 8))
   if (!query) return webJson({ ok: false, tool: 'web_search', error: 'missing query' })
 
-  const cacheKey = `${query}::${limit}`
+  const preferredEngine = readWebConfig().preferredEngine || 'auto'
+  const cacheKey = `${preferredEngine}::${query}::${limit}`
   const cached = searchCacheGet(cacheKey)
   if (cached) return webJson({ ...cached, cached: true })
 
@@ -454,12 +455,14 @@ export async function execWebSearch(args, context = {}) {
   // 第一梯队：带 key 的可靠 JSON API，按优先级【串行】尝试。
   // 未配置的引擎瞬间返回 null（不发网络请求），所以串行不会拖慢——
   // 通常只有 serper 配了，~1.5s 就出结果。
-  const tier1 = [
+  let tier1 = [
     ['serper', searchViaSerper],
     ['brave',  searchViaBrave],
     ['tavily', searchViaTavily],
     ['searxng', searchViaSearXNG],
   ]
+  const apiPreference = preferredEngine === 'google' ? 'serper' : preferredEngine
+  tier1 = tier1.sort(([a], [b]) => Number(b === apiPreference) - Number(a === apiPreference))
   for (const [name, engine] of tier1) {
     throwIfAborted(context.signal)
     let result
@@ -483,11 +486,29 @@ export async function execWebSearch(args, context = {}) {
 
   // 第二梯队：无 key 的爬虫兜底，【并行】抢答。最坏耗时压成单引擎超时（~18s）而非串行累加。
   throwIfAborted(context.signal)
-  const tier2 = [
+  let tier2 = [
     ['bing', searchViaBing],
     ['jina', searchViaJina],
     ['ddg',  searchViaDDG],
   ]
+  const crawlerPreference = preferredEngine === 'duckduckgo' ? 'ddg' : preferredEngine
+  const preferredCrawler = tier2.find(([name]) => name === crawlerPreference)
+  if (preferredCrawler) {
+    throwIfAborted(context.signal)
+    try {
+      const preferredResult = await preferredCrawler[1](query, limit, context.signal)
+      if (preferredResult?.ok) {
+        const payload = buildSearchPayload(query, preferredResult)
+        searchCacheSet(cacheKey, payload)
+        return webJson(payload)
+      }
+      if (preferredResult) failures.push({ engine: preferredCrawler[0], reason: preferredResult.reason || 'unknown' })
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      failures.push({ engine: preferredCrawler[0], reason: `threw: ${err.message || err}` })
+    }
+    tier2 = tier2.filter(([name]) => name !== preferredCrawler[0])
+  }
   const raced = await raceEnginesFirstOk(tier2, query, limit, context.signal, failures)
   if (raced && raced.ok) {
     const payload = buildSearchPayload(query, raced)

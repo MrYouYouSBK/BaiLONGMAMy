@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
-import { config, MIMO_PROVIDER, OFFLINE_PROVIDER, ZHIPU_PROVIDER, getProviderModelFallbacks, shouldOmitSamplingForProviderModel, shouldSendThinkingDisabledForProviderModel, shouldUseMaxCompletionTokensForProviderModel, switchModel } from './config.js'
+import { config, CODEX_PROVIDER, MIMO_PROVIDER, OFFLINE_PROVIDER, ZHIPU_PROVIDER, getProviderModelFallbacks, shouldOmitSamplingForProviderModel, shouldSendThinkingDisabledForProviderModel, shouldUseMaxCompletionTokensForProviderModel, switchModel } from './config.js'
 import { createOfflineStreamResult, isOfflineFallbackError } from './offline-assistant.js'
+import { createCodexStreamResult } from './codex-connector.js'
 import { executeTool } from './capabilities/executor.js'
 import { getToolSchemas } from './capabilities/schemas.js'
 import { recordUsage, shouldThrottle } from './quota.js'
@@ -934,6 +935,7 @@ export async function callLLM({ systemPrompt, message, messages: inputMessages =
       ]
 
   let useOfflineStream = config.provider === OFFLINE_PROVIDER
+  const useCodexStream = config.provider === CODEX_PROVIDER
   let offlineFallbackError = null
 
   if (shouldThrottle()) {
@@ -1045,6 +1047,8 @@ export async function callLLM({ systemPrompt, message, messages: inputMessages =
               onStream,
               enabled: mustReply,
             })
+        : useCodexStream
+          ? await createCodexStreamResult({ messages, signal, onStream })
         : await streamOnceWithModelFallback({
             messages,
             toolSchemas,

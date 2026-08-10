@@ -1,8 +1,9 @@
 import { emitEvent, setStickyEvent } from '../../events.js'
 import { pushMessage } from '../../inbound-message.js'
 import { restartConnector } from '../../social/index.js'
-import { replaceProvider } from '../../providers/registry.js'
+import { removeProvider, replaceProvider, setPreferredProvider } from '../../providers/registry.js'
 import { MinimaxProvider } from '../../providers/minimax.js'
+import { OpenAICompatibleMediaProvider, StableDiffusionMediaProvider } from '../../providers/openai-media.js'
 import {
   config,
   getActivationStatus,
@@ -34,6 +35,9 @@ import { getAgentName, validateAgentName } from '../agent.js'
 import { jsonResponse, readJsonBody } from '../utils.js'
 import { setConfig } from '../../db.js'
 import { getMapServiceSettings, setMapServiceSettings } from '../../map-service.js'
+import { getCodexStatus, loginCodex } from '../../codex-connector.js'
+import { discoverLocalAI } from '../../local-ai-discovery.js'
+import { getMediaProviderRuntimeConfig, getMediaProviderSettings, setMediaProviderSettings } from '../../media-provider-config.js'
 
 function checkLocalOrToken(req, res, url, requireLocalOrToken) {
   if (typeof requireLocalOrToken === 'function') return requireLocalOrToken(req, res, url)
@@ -42,6 +46,55 @@ function checkLocalOrToken(req, res, url, requireLocalOrToken) {
 }
 
 export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken, hasAllowedAccess } = {}) {
+  if (req.method === 'GET' && url.pathname === '/settings/media-provider') {
+    const media = getMediaProviderSettings()
+    const minimaxConfigured = !!(globalThis.process?.env?.MINIMAX_API_KEY || getMinimaxKey())
+    media.providers = media.providers.map(provider => provider.id === 'minimax' ? { ...provider, configured: minimaxConfigured } : provider)
+    jsonResponse(res, 200, { ok: true, media })
+    return true
+  }
+
+  if (req.method === 'POST' && url.pathname === '/settings/media-provider') {
+    try {
+      const body = await readJsonBody(req)
+      if (body.provider === 'minimax' && !(globalThis.process?.env?.MINIMAX_API_KEY || getMinimaxKey())) {
+        throw new Error('MiniMax media requires a configured API key')
+      }
+      const media = setMediaProviderSettings(body)
+      const runtime = getMediaProviderRuntimeConfig()
+      removeProvider('openai-media')
+      removeProvider('stable-diffusion')
+      if (runtime.provider === 'openai-compatible' && runtime.openaiApiKey) {
+        replaceProvider(new OpenAICompatibleMediaProvider({ apiKey: runtime.openaiApiKey, baseURL: runtime.openaiBaseURL, model: runtime.openaiModel }))
+      }
+      if (runtime.provider === 'stable-diffusion') {
+        replaceProvider(new StableDiffusionMediaProvider({ baseURL: runtime.stableDiffusionBaseURL }))
+      }
+      const preferred = { minimax: 'minimax', 'openai-compatible': 'openai-media', 'stable-diffusion': 'stable-diffusion' }[runtime.provider]
+      setPreferredProvider('image', preferred || '')
+      jsonResponse(res, 200, { ok: true, media })
+    } catch (err) {
+      jsonResponse(res, 400, { ok: false, error: err.message })
+    }
+    return true
+  }
+
+  if (req.method === 'GET' && url.pathname === '/settings/local-ai') {
+    jsonResponse(res, 200, { ok: true, localAI: await discoverLocalAI() })
+    return true
+  }
+
+  if (req.method === 'GET' && url.pathname === '/settings/codex') {
+    jsonResponse(res, 200, { ok: true, codex: await getCodexStatus() })
+    return true
+  }
+
+  if (req.method === 'POST' && url.pathname === '/settings/codex/login') {
+    const codex = await loginCodex()
+    jsonResponse(res, codex.ok ? 200 : 400, { ok: codex.ok, codex })
+    return true
+  }
+
   if (req.method === 'GET' && url.pathname === '/settings') {
     const status = getActivationStatus()
     const minimaxKey = getMinimaxKey()

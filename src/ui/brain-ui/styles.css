@@ -27,6 +27,21 @@
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
+[data-theme="amoled"] {
+  --bg0: #000000; --bg1: #000000; --bg-deep: #000000;
+  --ink: #f7f7f8; --ink2: #a8abb3; --dim: #666a73;
+  --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.18);
+  --panel: rgba(0, 0, 0, 0.96); --panel-raised: #090909; --console-bg: #000000;
+  --cool: #48a2ff; --warm: #ff9d2e; --ok: #35e88b;
+  --node-low: #0d3157; --node-high: #ffc06e;
+  --glow-halo: rgba(72, 162, 255, 0.10);
+  --glow-tint1: rgba(255, 157, 46, 0.06);
+  --glow-tint2: rgba(72, 162, 255, 0.05);
+  --link-stroke: rgba(72, 162, 255, 0.24);
+  --shadow-soft: 0 14px 44px rgba(0, 0, 0, 0.75);
+  --shadow-console: 0 12px 34px rgba(0, 0, 0, 0.82);
+}
+
 [data-theme="phosphor"] {
   --bg0: #050806; --bg1: #0a120c; --bg-deep: #020403;
   --ink: #c8f0c8; --ink2: #8fb48a; --dim: #4a6b4e;
@@ -1285,6 +1300,7 @@ body {
 }
 
 .theme-dot[data-t="midnight"] { background: linear-gradient(135deg, #070b12 10%, #4f8cff 48%, #ff9f1c); }
+.theme-dot[data-t="amoled"] { background: linear-gradient(135deg, #000 38%, #48a2ff 52%, #ff9d2e); }
 .theme-dot[data-t="phosphor"] { background: linear-gradient(135deg, #0a120c, #9fe09a); }
 .theme-dot[data-t="violet"] { background: linear-gradient(135deg, #161128, #b098f0); }
 .theme-dot[data-t="rose"] { background: linear-gradient(135deg, #24151f, #f2c27a); }
@@ -1438,6 +1454,28 @@ body {
   box-shadow: 0 0 16px color-mix(in srgb, var(--cool) 22%, transparent);
 }
 
+.camera-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-raised) 60%, transparent);
+  color: var(--dim);
+  font-size: 15px;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.camera-btn:hover,
+.camera-btn.active {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 50%, var(--line-strong));
+  background: color-mix(in srgb, var(--ok) 10%, var(--panel-raised));
+}
+
 /* ── Video mode button ── */
 .video-btn {
   display: none;
@@ -1498,8 +1536,8 @@ body {
 .settings-overlay[hidden] { display: none; }
 
 .settings-modal {
-  width: 600px;
-  height: 560px;
+  width: 980px;
+  height: 680px;
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 80px);
   border-radius: 16px;
@@ -1779,6 +1817,75 @@ body {
 
 .settings-tab { display: none; }
 .settings-tab.active { display: block; }
+
+/* GAI AI bilingual control center */
+.gai-control-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cool) 10%, transparent), color-mix(in srgb, var(--warm) 7%, transparent));
+}
+.gai-control-kicker {
+  color: var(--warm);
+  font: 600 10px/1.3 "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.16em;
+}
+.gai-control-hero h2 { margin-top: 5px; font-size: 20px; letter-spacing: -0.02em; }
+.gai-control-hero p { margin-top: 7px; max-width: 580px; color: var(--ink2); font-size: 12px; line-height: 1.55; }
+.gai-auto-badge {
+  align-self: flex-start;
+  white-space: nowrap;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--ok) 42%, var(--line));
+  border-radius: 999px;
+  color: var(--ok);
+  font: 600 9px/1 "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.05em;
+}
+.gai-status-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.gai-status { min-width: 0; padding: 11px 10px; background: var(--bg1); }
+.gai-status span { display: block; color: var(--dim); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
+.gai-status strong { display: block; overflow: hidden; margin-top: 5px; color: var(--ink2); font: 600 9px/1.2 "JetBrains Mono", ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.gai-status strong.ok { color: var(--ok); }
+.gai-status strong.warn { color: var(--warm); }
+.gai-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }
+.gai-card { padding: 15px; border: 1px solid var(--line-strong); border-radius: 12px; background: color-mix(in srgb, var(--panel-raised) 82%, transparent); }
+.gai-card h3 { margin-bottom: 9px; color: var(--ink); font-size: 13px; }
+.gai-card p { margin-bottom: 10px; color: var(--ink2); font-size: 11px; line-height: 1.55; }
+.gai-card label { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 10px; margin-top: 8px; color: var(--ink2); font-size: 10px; }
+.gai-card input,
+.gai-card select {
+  min-width: 0; height: 30px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 7px;
+  outline: none; background: var(--bg0); color: var(--ink); font-size: 10px; font-family: inherit;
+}
+.gai-card input:focus,
+.gai-card select:focus { border-color: var(--cool); }
+.gai-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.gai-actions button {
+  min-height: 29px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 7px;
+  background: color-mix(in srgb, var(--cool) 8%, transparent); color: var(--ink); cursor: pointer; font: 600 9px/1.2 "JetBrains Mono", ui-monospace, monospace;
+}
+.gai-actions button:hover { border-color: var(--cool); color: var(--cool); }
+.gai-links { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 10px; }
+.gai-links a { color: var(--cool); font-size: 9px; text-decoration: none; }
+.gai-links a:hover { text-decoration: underline; }
+.gai-inline-feedback { min-height: 14px; margin-top: 8px; color: var(--ok); font: 9px/1.45 "JetBrains Mono", ui-monospace, monospace; word-break: break-word; }
+.gai-inline-feedback.error { color: var(--warm); }
+
+@media (max-width: 760px) {
+  .gai-control-grid { grid-template-columns: 1fr; }
+  .gai-status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gai-control-hero { flex-direction: column; }
+  .gai-card label { grid-template-columns: 1fr; gap: 4px; }
+}
 
 /* ── Custom scrollbars for settings ── */
 .settings-content::-webkit-scrollbar,

@@ -1,9 +1,11 @@
 import { getConfig } from '../db.js'
 
-const DEFAULT_AGENT_NAME = '小白龙'
+const DEFAULT_AGENT_NAME = 'GAI AI'
+const LEGACY_DEFAULT_NAMES = new Set(['小白龙', '白龙马', 'Longma', 'Longma AI Agent'])
 
 export function getAgentName() {
-  return (getConfig('agent_name') || '').trim() || DEFAULT_AGENT_NAME
+  const stored = (getConfig('agent_name') || '').trim()
+  return !stored || LEGACY_DEFAULT_NAMES.has(stored) ? DEFAULT_AGENT_NAME : stored
 }
 
 export function validateAgentName(agentName) {

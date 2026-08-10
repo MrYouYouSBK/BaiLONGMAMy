@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('bailongma', {
   platform: process.platform,
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('app:get-version'),
+  getDeviceStatus: () => ipcRenderer.invoke('devices:get-status'),
+  requestMediaAccess: (kind) => ipcRenderer.invoke('devices:request-access', kind),
   checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
   startDownload: () => ipcRenderer.invoke('updater:start-download'),
   quitAndInstall: () => ipcRenderer.invoke('updater:quit-and-install'),

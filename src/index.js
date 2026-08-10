@@ -27,8 +27,10 @@ import { startAPI } from './api.js'
 import { emitEvent, setStickyEvent, clearStickyEvent } from './events.js'
 import { formatTick, nowTimestamp, describeExistence } from './time.js'
 import { getAdaptiveTickInterval, getQuotaStatus, setRateLimited, isRateLimited, getTickInterval } from './quota.js'
-import { registerProvider } from './providers/registry.js'
+import { registerProvider, setPreferredProvider } from './providers/registry.js'
 import { MinimaxProvider } from './providers/minimax.js'
+import { OpenAICompatibleMediaProvider, StableDiffusionMediaProvider } from './providers/openai-media.js'
+import { getMediaProviderRuntimeConfig } from './media-provider-config.js'
 import { isRunning, setScheduler } from './control.js'
 import { getCustomIntervalMs, consumeTick as consumeTickerTick, getStatus as getTickerStatus } from './ticker.js'
 import { seedSandboxOnce, seedMusicOnce, rescueDataFromInstallDir } from './paths.js'
@@ -120,14 +122,15 @@ function withStartupTimeout(promise, ms, label) {
 }
 
 // Collect geo-location + live weather (refresh on IP change or after 7 days; weather refreshed every time)
-reportStartupProgress('geo', 'running', '读取缓存或请求实时天气', '正在刷新天气位置')
-const geoResult = await withStartupTimeout(collectGeoWeather(), 12000, '[startup] geo-weather')
-reportStartupProgress('geo', 'done', '天气位置已刷新', '天气位置已刷新')
+const offlineStartup = config.provider === 'offline'
+reportStartupProgress('geo', 'running', offlineStartup ? 'Offline mode: network location disabled' : '读取缓存或请求实时天气', offlineStartup ? 'Skipping network location' : '正在刷新天气位置')
+const geoResult = offlineStartup ? null : await withStartupTimeout(collectGeoWeather(), 12000, '[startup] geo-weather')
+reportStartupProgress('geo', 'done', offlineStartup ? 'No location data sent' : '天气位置已刷新', offlineStartup ? 'Offline privacy protected' : '天气位置已刷新')
 
 // Collect trending topics (CN → Weibo+Zhihu, others → HN+Reddit; 1h cache)
-reportStartupProgress('trending', 'running', '加载今日热点源', '正在采集热点')
-await withStartupTimeout(collectTrending(geoResult?.location?.country_code), 12000, '[startup] trending')
-reportStartupProgress('trending', 'done', '热点采集完成', '热点采集完成')
+reportStartupProgress('trending', 'running', offlineStartup ? 'Offline mode: network feeds disabled' : '加载今日热点源', offlineStartup ? 'Skipping online feeds' : '正在采集热点')
+if (!offlineStartup) await withStartupTimeout(collectTrending(geoResult?.location?.country_code), 12000, '[startup] trending')
+reportStartupProgress('trending', 'done', offlineStartup ? 'Online feeds skipped' : '热点采集完成', offlineStartup ? 'Offline mode remains local' : '热点采集完成')
 
 // Scan locally installed AI agents (Claude Code, Codex, Hermes, OpenClaw, etc.) and persist to known_agents table
 reportStartupProgress('agents', 'running', 'Claude Code / Codex / Hermes', '正在扫描本地 Agent')
@@ -227,6 +230,27 @@ function registerMinimaxIfAvailable() {
   if (key) registerProvider(new MinimaxProvider({ apiKey: key }))
 }
 registerMinimaxIfAvailable()
+
+function registerOptionalMediaProviders() {
+  const media = getMediaProviderRuntimeConfig()
+  if (media.provider === 'openai-compatible' && media.openaiApiKey) {
+    registerProvider(new OpenAICompatibleMediaProvider({
+      apiKey: media.openaiApiKey,
+      baseURL: media.openaiBaseURL,
+      model: media.openaiModel,
+    }))
+  }
+  if (media.provider === 'stable-diffusion') {
+    registerProvider(new StableDiffusionMediaProvider({ baseURL: media.stableDiffusionBaseURL }))
+  }
+  const preferred = {
+    minimax: 'minimax',
+    'openai-compatible': 'openai-media',
+    'stable-diffusion': 'stable-diffusion',
+  }[media.provider]
+  setPreferredProvider('image', preferred || '')
+}
+registerOptionalMediaProviders()
 
 if (config.needsActivation) {
   console.log('[LLM] Not activated — waiting for user to enter API key on the activation page')
@@ -1131,7 +1155,7 @@ async function runTurn(input, label, msg = null) {
 
     // 2. Build system prompt (stable hard-floor) + context block (per-round dynamic)
     const persona = getConfig('persona') || ''
-    const agentName = getConfig('agent_name') || '小白龙'
+    const agentName = getConfig('agent_name') || 'GAI AI'
     const entities = getKnownEntities()
     const hasActiveTask = !!state.task
     const terminalStreamContext = formatTerminalStreamContext()

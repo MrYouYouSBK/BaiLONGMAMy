@@ -201,7 +201,7 @@ function chunkText(text = '', size = 20) {
   return chunks
 }
 
-function writeCmdDemoScript(windowTitle = 'Bailongma Capability Demo') {
+function writeCmdDemoScript(windowTitle = 'GAI AI Capability Demo') {
   const { resolved } = resolveSandboxFile(CMD_SCRIPT_PATH)
   const safeTitle = sanitizeCmdTitle(windowTitle)
   const randomLine = Array(20).fill('%random%').join('')
@@ -219,10 +219,10 @@ function writeCmdDemoScript(windowTitle = 'Bailongma Capability Demo') {
 }
 
 function sanitizeCmdTitle(title = '') {
-  return String(title || 'Bailongma Capability Demo')
+  return String(title || 'GAI AI Capability Demo')
     .replace(/[&|<>^"]/g, '')
     .slice(0, 96)
-    .trim() || 'Bailongma Capability Demo'
+    .trim() || 'GAI AI Capability Demo'
 }
 
 function quoteCmdPath(value = '') {
@@ -270,7 +270,7 @@ function openRealCmdWindow() {
     return null
   }
   closeCmdWindow()
-  const windowTitle = sanitizeCmdTitle(`Bailongma Capability Demo ${Date.now()}`)
+  const windowTitle = sanitizeCmdTitle(`GAI AI Capability Demo ${Date.now()}`)
   const scriptPath = writeCmdDemoScript(windowTitle)
   activeCmdWindowTitle = windowTitle
   const comspec = process.env.ComSpec || 'cmd.exe'

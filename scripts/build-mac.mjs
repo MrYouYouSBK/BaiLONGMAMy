@@ -54,7 +54,6 @@ for (const arch of archs) {
   run('node', [
     './node_modules/electron-builder/cli.js',
     '--mac',
-    'dmg',
     `--${arch}`,
     '--publish',
     'never',

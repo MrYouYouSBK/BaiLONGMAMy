@@ -504,7 +504,7 @@ async function renderInlineConfig(topicId) {
 // 顺序即展示顺序。topic 不存在于 /docs 时自动跳过，无需手动同步。
 const TAB_GROUPS = [
   { label: '配置', topics: ['model_config', 'voice_asr', 'voice_tts', 'voice_config', 'wechat_config'] },
-  { label: '关于白龙马', topics: ['self_architecture', 'ui_design'] },
+  { label: '關於 GAI AI', topics: ['self_architecture', 'ui_design'] },
 ]
 
 // Tab 上的短标签（文档 title 太长，pill 放不下）；缺省回退到 title。

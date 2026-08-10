@@ -6,6 +6,7 @@
  */
 
 const providers = []
+const preferredProviders = new Map()
 
 // 注册一个 provider 实例
 export function registerProvider(provider) {
@@ -25,11 +26,26 @@ export function replaceProvider(provider) {
   }
 }
 
+export function removeProvider(name) {
+  const index = providers.findIndex(provider => provider.name === name)
+  if (index >= 0) providers.splice(index, 1)
+}
+
 // 获取支持某能力的第一个可用 provider
 export function getProvider(capability) {
-  const p = providers.find(p => p.canDo(capability))
+  const preferred = preferredProviders.get(capability)
+  const p = (preferred ? providers.find(p => p.name === preferred && p.canDo(capability)) : null)
+    || providers.find(p => p.canDo(capability))
   if (!p) throw new Error(`没有可用的 Provider 支持能力: "${capability}"`)
   return p
+}
+
+export function setPreferredProvider(capability, providerName = '') {
+  const cap = String(capability || '').trim()
+  if (!cap) return
+  const name = String(providerName || '').trim()
+  if (name) preferredProviders.set(cap, name)
+  else preferredProviders.delete(cap)
 }
 
 // 调用某能力（自动路由）
