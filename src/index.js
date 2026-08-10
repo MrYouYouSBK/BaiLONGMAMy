@@ -51,6 +51,7 @@ import { truncateToolResultForUI } from './runtime/tool-result-preview.js'
 import { buildLLMMessages } from './runtime/messages.js'
 import { parseMarkers } from './runtime/markers.js'
 import { createConsciousnessLoop } from './runtime/consciousness-loop.js'
+import { getProviderRuntimePolicy } from './runtime/provider-mode-policy.js'
 import { buildAutonomousTickDirections } from './runtime/tick-policy.js'
 import { buildStrictEvaluationContext, filterStrictEvaluationTools, resolveStrictEvaluationMode } from './runtime/strict-evaluation.js'
 import { extractVerbatimPayload, findRecentVerbatimPayload, hasInlineVerbatimPayload, isVerbatimOutputRequest, isVerbatimSetup, isVerbatimStart } from './runtime/verbatim.js'
@@ -192,6 +193,7 @@ reportStartupProgress('skills', 'done', `已加载 ${startupSkills.length} 个�
 // Awakening phase: first 10 heartbeat ticks after initial activation run at a fixed 10s cadence
 const AWAKENING_CONFIG_KEY = 'awakening_ticks_remaining'
 function getAwakeningTicks() {
+  if (!getProviderRuntimePolicy(config.provider).runAwakeningTicks) return 0
   const raw = getConfig(AWAKENING_CONFIG_KEY)
   if (raw === null || raw === undefined || raw === '') return 10
   return Math.max(0, parseInt(raw, 10) || 0)
@@ -367,6 +369,16 @@ function writeStartupSelfCheckState(value) {
 }
 
 function ensureStartupSelfCheckState() {
+  if (!getProviderRuntimePolicy(config.provider).runStartupSelfCheck) {
+    state.startupSelfCheck = {
+      version: STARTUP_SELF_CHECK_VERSION,
+      status: 'skipped_offline',
+      active: false,
+      updated_at: nowTimestamp(),
+    }
+    return state.startupSelfCheck
+  }
+
   const current = readStartupSelfCheckState()
   if (current?.version === STARTUP_SELF_CHECK_VERSION && current.status === 'completed') {
     state.startupSelfCheck = { ...current, active: false }
@@ -1711,7 +1723,8 @@ async function main() {
     onActivated: () => {
       console.log(`[LLM] Activated: ${config.provider} (${config.model})`)
       registerMinimaxIfAvailable()
-      startConsciousnessLoop({ runImmediateTick: true }).catch(err => console.error('[system] Main loop failed to start:', err))
+      const runtimePolicy = getProviderRuntimePolicy(config.provider)
+      startConsciousnessLoop({ runImmediateTick: runtimePolicy.runImmediateStartupTick }).catch(err => console.error('[system] Main loop failed to start:', err))
     },
   })
   // 仅在配置了正式预警 API 与目标地区时启用；避免把普通路径数据当作安全预警。
@@ -1731,7 +1744,8 @@ async function main() {
   }
 
   console.log('Type a message and press Enter to send it to Jarvis\n')
-  await startConsciousnessLoop()
+  const runtimePolicy = getProviderRuntimePolicy(config.provider)
+  await startConsciousnessLoop({ runImmediateTick: runtimePolicy.runImmediateStartupTick })
 }
 
 main()

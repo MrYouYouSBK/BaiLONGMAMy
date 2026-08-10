@@ -1089,8 +1089,8 @@ function refreshAiActivity() {
   }
   if (aiActivityLog.length === 0) {
     aiActivityEl.dataset.state = "idle";
-    aiActivityLabelEl.textContent = "空闲";
-    aiActivityDetailEl.textContent = "";
+    aiActivityLabelEl.textContent = "已就绪";
+    aiActivityDetailEl.textContent = "· 输入文字或按住空格说话";
     aiActivityFirstTs = 0;
     return;
   }
