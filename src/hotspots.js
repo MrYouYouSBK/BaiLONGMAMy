@@ -7,8 +7,7 @@ import { nowTimestamp } from './time.js'
 const DEFAULT_REFRESH_MINUTES = 30
 const HOTSPOT_CONTEXT_TTL_MINUTES = 60
 const DEFAULT_TIMEOUT_MS = 10000
-const USER_AGENT = 'Bailongma/1.0 (+https://localhost)'
-const PUBLIC_HOTDATA_API_KEY = 'zIisgRZJLLXgqKCwBirNLegtNNRuL70eBsbHXPxEBWU='
+const USER_AGENT = 'GAI-AI/3.2 (+https://localhost)'
 
 const PLATFORM_ORDER = ['douyin', 'xiaohongshu', 'wechat', 'weibo']
 const PLATFORM_LABELS = {
@@ -87,7 +86,7 @@ function readHotspotConfig() {
       token: String(stored.tikhubToken || process.env.TIKHUB_TOKEN || process.env.HOTSPOT_TIKHUB_TOKEN || '').trim(),
     },
     hotdata: {
-      key: String(stored.hotdataApiKey || process.env.HOTDATA_API_KEY || PUBLIC_HOTDATA_API_KEY || '').trim(),
+      key: String(stored.hotdataApiKey || process.env.HOTDATA_API_KEY || '').trim(),
     },
     wechat: {
       url: String(stored.customWechatUrl || process.env.HOTSPOT_WECHAT_URL || '').trim(),

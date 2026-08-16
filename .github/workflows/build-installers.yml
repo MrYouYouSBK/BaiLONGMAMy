@@ -42,10 +42,16 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Verify zero-config mode
+      - name: Verify GAI AI 3.2 runtime
         run: |
           npm run test:offline
           npm run test:config-upgrade
+          npm run test:voice-continuous
+          npm run test:gai-v31
+          npm run test:gai-v32
+          npm run test:local-ai
+          npm run test:community-updater
+          npm run test:websocket-security
 
   windows:
     name: Windows x64 installer
@@ -181,10 +187,11 @@ jobs:
           release_tag="${{ steps.version.outputs.tag }}"
           if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$release_tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$release_tag" --notes-file RELEASE_NOTES_3.2.md --title "GAI AI 3.2.0" --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$release_tag" release-assets/* \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --generate-notes \
-              --title "GAI AI $release_tag"
+              --notes-file RELEASE_NOTES_3.2.md \
+              --title "GAI AI 3.2.0"
           fi

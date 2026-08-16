@@ -47,6 +47,7 @@
 
     .identity {
       max-width: 520px;
+      animation: startupReveal 700ms cubic-bezier(.2,.75,.25,1) both;
     }
 
     .brand-row {
@@ -67,6 +68,8 @@
       letter-spacing: 0;
       color: var(--accent);
       box-shadow: 0 0 34px rgba(86, 214, 178, 0.12);
+      position: relative;
+      animation: startupMark 2.4s ease-in-out infinite;
     }
 
     .brand {
@@ -146,6 +149,7 @@
       border: 1px solid var(--line);
       background: rgba(17, 22, 28, 0.92);
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+      animation: startupPanel 760ms 100ms cubic-bezier(.2,.75,.25,1) both;
     }
 
     .steps-head {
@@ -192,6 +196,14 @@
     .step.running {
       border-color: rgba(86, 214, 178, 0.35);
       background: rgba(86, 214, 178, 0.055);
+    }
+
+    @keyframes startupReveal { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    @keyframes startupPanel { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+    @keyframes startupMark { 50% { border-color: rgba(127,184,255,.72); box-shadow: 0 0 46px rgba(86,214,178,.2); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .identity, .steps, .mark, .running .dot { animation: none !important; }
     }
 
     .step.done { color: var(--text); }
@@ -398,8 +410,14 @@
     render(latestState);
     setInterval(updateElapsed, 200);
 
-    const bridge = window.bailongma;
+    const bridge = window.gai || window.bailongma;
     if (bridge) {
+      bridge.preferences?.get?.().then((preferences) => {
+        if (preferences?.startupMusicEnabled === false) return;
+        const chime = new Audio('../music/gai-startup-chime.wav');
+        chime.volume = 0.38;
+        chime.play().catch(() => {});
+      }).catch(() => {});
       bridge.getVersion?.().then((version) => {
         if (version) versionEl.textContent = `Desktop Agent ${version}`;
       }).catch(() => {});

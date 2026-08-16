@@ -21,13 +21,17 @@ import { execSync } from 'child_process'
 import { paths } from './paths.js'
 
 const SYSTEM_INFO_FILE = path.join(paths.dataDir, 'system-info.json')
-const SYSTEM_INFO_VERSION = 1
+const SYSTEM_INFO_VERSION = 2
 
 const IS_WIN   = process.platform === 'win32'
 const IS_MAC   = process.platform === 'darwin'
 const IS_LINUX = process.platform === 'linux'
 
 let _cached = null
+
+function appleChipFromCpu(cpu = '') {
+  return String(cpu).match(/Apple\s+M\d+(?:\s+(?:Pro|Max|Ultra))?/i)?.[0] || null
+}
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
 
@@ -352,6 +356,10 @@ export async function collectSystemInfo() {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       locale:   Intl.DateTimeFormat().resolvedOptions().locale,
       cpu:      cpus[0]?.model?.trim() ?? 'unknown',
+      cpu_identity: cpus[0]?.model?.trim() ?? 'unknown',
+      logical_cores: Math.max(1, cpus.length),
+      apple_chip: appleChipFromCpu(cpus[0]?.model),
+      local_ai_acceleration: IS_MAC && os.arch() === 'arm64' ? ['Metal', 'MLX', 'Accelerate'] : [],
       ram_gb:   Math.round(os.totalmem() / (1024 ** 3)),
       paths: {
         home:      homedir,
@@ -403,8 +411,10 @@ export function getSystemInfoBlock() {
     `Desktop: ${s.paths.desktop}`,
     `Documents: ${s.paths.documents}`,
     `Downloads: ${s.paths.downloads}`,
-    `CPU: ${s.cpu} · RAM: ${s.ram_gb} GB total · ${d.ram_free_gb ?? '?'} GB free`,
+    `CPU: ${s.cpu}${s.logical_cores ? ` · ${s.logical_cores} logical cores` : ''} · RAM: ${s.ram_gb} GB total · ${d.ram_free_gb ?? '?'} GB free`,
   ]
+
+  if (s.apple_chip) lines.push(`Apple Silicon: ${s.apple_chip} · Acceleration: ${(s.local_ai_acceleration || []).join(', ')}`)
 
   if (d.local_ip) lines.push(`Local IP: ${d.local_ip}`)
 

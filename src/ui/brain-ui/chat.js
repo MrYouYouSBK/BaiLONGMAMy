@@ -34,6 +34,7 @@ export function initChat({
   let inputLocked = false;
   const pendingLocalSends = new Set();
   const pendingPastedImages = [];
+  let greetedThisSession = false;
   let closeTimer = null;
   let hasPendingJarvisMessage = false;
   let pendingMessageDismissed = false;
@@ -225,6 +226,16 @@ export function initChat({
   }
 
   function openChat(autoClose = false) {
+    if (!greetedThisSession) {
+      greetedThisSession = true;
+      const hour = new Date().getHours();
+      const period = hour < 12 ? ['Good morning', '早安'] : hour < 18 ? ['Good afternoon', '午安'] : ['Good evening', '晚上好'];
+      const language = document.documentElement.lang?.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+      const greeting = language === 'zh'
+        ? `${period[1]}，我是 GAI AI。今天想先完成哪一件事？`
+        : `${period[0]} — I’m GAI AI. What should we complete first today?`;
+      addMsg('jarvis', greeting, { alert: false, pending: false, source: 'greeting', dedupe: false });
+    }
     chatHistory.classList.add("open");
     if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
     if (autoClose && (!hasPendingJarvisMessage || pendingMessageDismissed) && !isTyping()) scheduleClose(4500);
@@ -451,6 +462,21 @@ export function initChat({
     renderPastedImages();
     openChat();
   }
+
+  window.addEventListener('gai:attach-screen', (event) => {
+    const detail = event?.detail || {};
+    const dataUrl = String(detail.dataUrl || '');
+    if (!/^data:image\//i.test(dataUrl) || pendingPastedImages.length >= MAX_PASTED_IMAGES) return;
+    pendingPastedImages.push({
+      id: newClientMessageId(),
+      data_url: dataUrl,
+      alt: detail.name || 'current screen',
+      name: detail.filename || `gai-screen-${Date.now()}.png`,
+    });
+    renderPastedImages();
+    openChat();
+    try { msgInput.focus(); } catch {}
+  });
 
   async function send({ channel = null, label = null, text = null } = {}) {
     if (inputLocked) return;

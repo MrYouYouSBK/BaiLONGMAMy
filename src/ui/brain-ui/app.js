@@ -15,7 +15,12 @@ import { initFeishuPopup, showFeishuPopup } from "./feishu-popup.js";
 import { attachJarvisAudioGraph, attachJarvisFx, isFxEnabledForVoice, setFxEnabledForVoice, getJarvisFxParams, setJarvisFxParams, resetJarvisFxParams, isFxUnlocked, tryUnlockFx } from "./tts-fx.js";
 import { initAudioOutputRouting, applyOutputSink, listOutputDevices, getOutputPreference, setOutputPreference } from "./audio-output.js";
 import { initGaiControlCenter } from "./gai-control-center.js";
+import { initVoiceProfileUI } from "./voice-profile-ui.js";
+import { initUiLocale } from "./ui-i18n.js";
+import { initEntryCeremony } from "./entry-ceremony.js";
 renderBrainUiApp(document.body);
+initUiLocale();
+initEntryCeremony();
 const THEME_KEY = "jarvis-brain-ui-theme";
 const PHYSICS_STORAGE_KEY = "jarvis-brain-ui-physics";
 const ACTIVATION_WARMUP_KEY = "bailongma_activation_warmup_until";
@@ -86,7 +91,7 @@ function applyUiZoom(factor, { persist = true } = {}) {
   const nextZoom = clampZoomFactor(factor);
   currentUiZoom = nextZoom;
 
-  const bridge = window.bailongma;
+  const bridge = window.gai || window.bailongma;
   if (bridge?.isElectron && typeof bridge.setZoomFactor === "function") {
     bridge.setZoomFactor(nextZoom);
   } else {
@@ -102,7 +107,7 @@ function stepUiZoom(delta) {
 }
 
 function initUiZoom() {
-  const bridge = window.bailongma;
+  const bridge = window.gai || window.bailongma;
   const initialZoom = loadSavedUiZoom();
 
   if (!bridge?.isElectron) {
@@ -1576,8 +1581,9 @@ function setTTSStreamingEnabled(on) {
   try { localStorage.setItem(TTS_STREAMING_KEY, on ? '1' : '0'); } catch {}
 }
 // 仅当开启 + 浏览器支持 MSE 流式 MP3 时才走流式，否则退回整段 blob 播放（绝不让声音变哑）
-function ttsCanStream() {
+function ttsCanStream(response) {
   if (!isTTSStreamingEnabled()) return false;
+  if (response?.headers?.get('content-type')?.toLowerCase()?.includes('wav')) return false;
   if (typeof window.MediaSource === 'undefined') return false;
   try { return MediaSource.isTypeSupported('audio/mpeg'); } catch { return false; }
 }
@@ -1813,7 +1819,7 @@ async function playTTSReply(text) {
     }
     if (ttsAudioEl) { clearTTSAudioGraph(); ttsAudioEl.pause(); try { URL.revokeObjectURL(ttsAudioEl.src); } catch {} }
     // 默认流式：边下边播；不支持 MSE / 已关闭流式 → 退回整段 blob 播放
-    if (ttsCanStream() && resp.body) {
+    if (ttsCanStream(resp) && resp.body) {
       playTTSViaMediaSource(resp);
     } else {
       const blob = await resp.blob();
@@ -1924,7 +1930,7 @@ async function pumpSttsQueue() {
     });
     if (!sttsActive) return; // 期间被打断/收尾
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    if (ttsCanStream() && resp.body) {
+    if (ttsCanStream(resp) && resp.body) {
       playTTSViaMediaSource(resp, { manageMic: false, onComplete });
     } else {
       const blob = await resp.blob();
@@ -2277,9 +2283,9 @@ function initTTSSettings() {
 
   fetch(`${API}/settings/tts`).then(r => r.json()).then(({ tts, voices }) => {
     if (voices) allVoices = voices;
-    const provider = tts?.ttsProvider || "doubao";
+    const provider = tts?.ttsProvider || "system";
     if (tts?.ttsProvider) providerSel.value = tts.ttsProvider;
-    else providerSel.value = "doubao";
+    else providerSel.value = "system";
     updateVoiceOptions(provider, tts?.ttsVoiceId);
     activeTTSVoiceId = voiceSel?.value || tts?.ttsVoiceId || null;
     const appidEl = document.getElementById("tts-volcano-appid");
@@ -3243,7 +3249,7 @@ function initTTSSettings() {
   async function loadVoiceSettings() {
     const langSelect = document.getElementById("voice-lang-select");
     const autoSend   = document.getElementById("voice-auto-send");
-    if (langSelect) langSelect.value = localStorage.getItem(VOICE_LANG_KEY) || "en-US";
+    if (langSelect) langSelect.value = localStorage.getItem(VOICE_LANG_KEY) || "multilingual";
     if (autoSend) autoSend.checked = localStorage.getItem(VOICE_AUTO_SEND_KEY) !== "false";
     const autoMic = document.getElementById("voice-auto-mic");
     if (autoMic) autoMic.checked = localStorage.getItem(VOICE_AUTO_MIC_KEY) === "true";
@@ -3277,7 +3283,7 @@ function initTTSSettings() {
 
   if (saveVoiceBtn) {
     saveVoiceBtn.addEventListener("click", async () => {
-      const lang      = document.getElementById("voice-lang-select")?.value || "en-US";
+      const lang      = document.getElementById("voice-lang-select")?.value || "multilingual";
       const autoSend  = document.getElementById("voice-auto-send")?.checked ?? true;
       const autoMic   = document.getElementById("voice-auto-mic")?.checked ?? false;
       const threshold = parseFloat(voiceThreshSlider?.value ?? "0.008");
@@ -3342,6 +3348,7 @@ function initTTSSettings() {
   }
 
   initTTSSettings();
+  initVoiceProfileUI();
 
   const memoryGraphToggle = document.getElementById("settings-memory-graph-toggle");
   const memoryGraphFeedback = document.getElementById("settings-memory-graph-feedback");
@@ -3657,7 +3664,7 @@ function initTTSSettings() {
 
   async function loadUpdateSettings() {
     syncUpdateSettings();
-    const bridge = window.bailongma;
+    const bridge = window.gai || window.bailongma;
     if (!bridge?.isElectron) {
       if (settingsCurrentVersion) settingsCurrentVersion.textContent = "仅桌面端可用";
       if (settingsCheckUpdateBtn) settingsCheckUpdateBtn.disabled = true;
@@ -3729,7 +3736,7 @@ function initTTSSettings() {
   });
 
   settingsCheckUpdateBtn?.addEventListener("click", async () => {
-    const bridge = window.bailongma;
+    const bridge = window.gai || window.bailongma;
     if (!bridge?.isElectron) return;
     setUpdateStatusText("正在检查更新…", "checking");
     setUpdateFeedback("");
@@ -3747,7 +3754,7 @@ function initTTSSettings() {
   });
 
   settingsDownloadUpdateBtn?.addEventListener("click", async () => {
-    const bridge = window.bailongma;
+    const bridge = window.gai || window.bailongma;
     if (!bridge?.isElectron) return;
     setUpdateStatusText("开始下载…", "downloading");
     showUpdateButtons({ check: false });
@@ -3760,7 +3767,7 @@ function initTTSSettings() {
   });
 
   settingsInstallUpdateBtn?.addEventListener("click", () => {
-    window.bailongma?.quitAndInstall?.();
+    (window.gai || window.bailongma)?.quitAndInstall?.();
   });
 
   settingsIgnoreUpdateBtn?.addEventListener("click", () => {
@@ -3785,7 +3792,7 @@ initVoicePanel({
   getChatInput:  () => document.getElementById("msg-input"),
   getSendBtn:    () => document.getElementById("send-btn"),
   getSendMessage: (options) => chat?.send?.(options),
-  getLang:       () => localStorage.getItem("bailongma-voice-lang") || "en-US",
+  getLang:       () => localStorage.getItem("bailongma-voice-lang") || "multilingual",
   getAutoSend:   () => localStorage.getItem("bailongma-voice-auto-send") !== "false",
   getAutoMic:    () => localStorage.getItem("bailongma-voice-auto-mic") === "true",
 });

@@ -1,8 +1,8 @@
 import { BaseProvider } from './base.js'
 
 export class OpenAICompatibleMediaProvider extends BaseProvider {
-  constructor({ apiKey, baseURL, model = 'gpt-image-1' }) {
-    super({ name: 'openai-media', apiKey, baseURL: String(baseURL || 'https://api.openai.com/v1').replace(/\/$/, '') })
+  constructor({ apiKey, baseURL, model = 'gpt-image-1', name = 'openai-media' }) {
+    super({ name, apiKey, baseURL: String(baseURL || 'https://api.openai.com/v1').replace(/\/$/, '') })
     this.model = model
   }
 
@@ -22,6 +22,40 @@ export class OpenAICompatibleMediaProvider extends BaseProvider {
     if (!response.ok) throw new Error(`OpenAI-compatible image request failed: ${data?.error?.message || `HTTP ${response.status}`}`)
     const urls = (data?.data || []).map(item => item?.url || (item?.b64_json ? `data:image/png;base64,${item.b64_json}` : '')).filter(Boolean)
     if (!urls.length) throw new Error('OpenAI-compatible image endpoint returned no images')
+    return { urls }
+  }
+}
+
+export class GeminiMediaProvider extends BaseProvider {
+  constructor({ apiKey, model = 'gemini-3.1-flash-image' }) {
+    super({ name: 'gemini-media', apiKey, baseURL: 'https://generativelanguage.googleapis.com/v1beta' })
+    this.model = model
+  }
+
+  canDo(capability) { return capability === 'image' }
+  getQuotaStatus() { return { image: { provider: this.name } } }
+
+  async call(capability, { prompt, aspect_ratio = '1:1' }) {
+    if (capability !== 'image') throw new Error(`Gemini media does not support ${capability}`)
+    const response = await fetch(`${this.baseURL}/interactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
+      body: JSON.stringify({
+        model: this.model,
+        input: [{ type: 'text', text: prompt }],
+        response_format: { type: 'image', aspect_ratio },
+      }),
+      signal: AbortSignal.timeout(180_000),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(`Gemini image request failed: ${data?.error?.message || `HTTP ${response.status}`}`)
+    const candidates = []
+    if (data?.output_image?.data) candidates.push(data.output_image)
+    for (const step of data?.steps || []) {
+      for (const block of step?.content || []) if (block?.type === 'image' && block?.data) candidates.push(block)
+    }
+    const urls = candidates.map(item => `data:${item.mime_type || 'image/png'};base64,${item.data}`)
+    if (!urls.length) throw new Error('Gemini image endpoint returned no image data')
     return { urls }
   }
 }

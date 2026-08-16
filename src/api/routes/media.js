@@ -167,7 +167,8 @@ export async function handleMediaRoutes(req, res, url) {
   if (req.method === 'GET' && url.pathname.startsWith('/audio/')) {
     const filename = path.basename(url.pathname)
     const filePath = path.join(paths.sandboxDir, 'audio', filename)
-    streamFile(req, res, filePath, 'audio/mpeg')
+    const mimeMap = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4' }
+    streamFile(req, res, filePath, mimeMap[path.extname(filename).toLowerCase()] || 'audio/mpeg')
     return true
   }
 

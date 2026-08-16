@@ -139,6 +139,36 @@ def main():
     write_icns(icns)
     print(f"wrote icon.icns sizes={[s for _, s in ICNS_ENTRIES]}")
 
+    # Keep every product surface on the same GAI AI identity. These filenames
+    # are retained because older installer/build manifests still reference them.
+    big.save(BUILD_DIR / "icon-mac-cartoon.png", "PNG", optimize=True)
+    ref.save(BUILD_DIR / "icon-mac-cartoon-256.png", "PNG", optimize=True)
+    icons[-1].save(
+        BUILD_DIR / "icon-mac-cartoon.ico",
+        format="ICO",
+        sizes=[(s, s) for s in ICO_SIZES],
+        append_images=icons[:-1],
+    )
+
+    images_dir = BUILD_DIR.parent / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    logo = render_icon(512, with_polish=True).convert("RGB")
+    logo.save(images_dir / "logo.png", "PNG", optimize=True)
+    logo.save(images_dir / "AGI128k.jpg", "JPEG", quality=92, optimize=True)
+
+    # NSIS sidebars are opaque 164x314 bitmaps. Centre the G mark on a dark
+    # gradient so the installer is recognizable without legacy horse artwork.
+    sidebar = Image.new("RGB", (164, 314), (5, 10, 20))
+    draw = ImageDraw.Draw(sidebar)
+    for y in range(314):
+        ratio = y / 313
+        draw.line((0, y, 164, y), fill=(int(5 + 8 * ratio), int(10 + 15 * ratio), int(20 + 32 * ratio)))
+    mark = render_icon(124, with_polish=True).convert("RGBA")
+    sidebar.paste(mark, (20, 70), mark)
+    sidebar.save(BUILD_DIR / "installerSidebar.bmp", "BMP")
+    sidebar.save(BUILD_DIR / "uninstallerSidebar.bmp", "BMP")
+    print("wrote GAI AI product and installer artwork")
+
 
 if __name__ == "__main__":
     main()

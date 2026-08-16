@@ -85,15 +85,23 @@ export const DOC_TOPICS = {
     title: '语音合成（TTS）配置指南',
     subtitle: 'Text-to-Speech',
     icon: '🔊',
-    summary: '语音合成将文字转为 Agent 语音输出。首选推荐豆包语音合成 2.0（https://console.volcengine.com/speech/new/）。也支持 MiniMax、OpenAI、ElevenLabs、火山引擎。配置入口：点击左上角 ⚙ → 语音设置 → TTS。',
+    summary: '语音合成将文字转为 Agent 语音输出。默认使用免费的 Windows/macOS 系统内建语音，无需密钥；豆包、MiniMax、OpenAI、ElevenLabs、火山引擎为可能收费的选配。配置入口：点击左上角 ⚙ → 语音设置 → TTS。',
     sections: [
       {
         title: '为什么 Agent 说话没有声音？',
         content: `常见原因：
-① 未配置 TTS 密钥 — 需在语音设置中填写对应服务商的 API Key
-② 密钥失效或账户欠费 — 检查服务商控制台余额和密钥状态
-③ 网络问题 — TTS 请求需要访问外网
-④ 未选择 TTS 服务商 — 请在语音设置的「TTS 服务商」下拉框中选择一个`,
+① 系统没有安装可用语音 — 请在 Windows/macOS 系统设置中安装中文或英文语音
+② 云端密钥失效或账户欠费 — 会自动回退到系统语音，并可在设置中检查云端凭证
+③ 输出设备被虚拟声卡占用 — 在语音设置选择“自动（跟随系统）”
+④ 仍无声时，点「试听」并确认系统音量与输出设备`,
+      },
+      {
+        title: '系统内建语音（默认／免费）',
+        content: `配置字段（POST /settings/tts）：
+■ ttsProvider = "system"
+■ ttsVoiceId = "system-auto"（自动选择中英文系统音色）
+
+不需要 API Key、不访问第三方服务、不产生模型费用。云端服务缺少凭证、发生网络错误或配额用尽时，GAI AI 会自动回退到系统语音。`,
       },
       {
         title: '豆包语音合成 2.0（首选推荐）',
@@ -105,7 +113,7 @@ export const DOC_TOPICS = {
 ■ doubaoAccessKey — 火山引擎平台 Access Key（与 doubaoKey 二选一）
 ■ doubaoAppId — 应用 App ID（可选）
 ■ doubaoResourceId — 语音资源 ID（可选，留空自动根据音色判断）
-■ ttsVoiceId — 音色 ID（可选，默认：zh_female_xiaohe_uranus_bigtts）
+■ ttsVoiceId — 音色 ID（选择豆包时可填：zh_female_xiaohe_uranus_bigtts）
 
 常用音色：
 → zh_female_xiaohe_uranus_bigtts（小何 2.0，女声，通用）
@@ -276,10 +284,10 @@ ASR 测试：
 → xunfeiApiSecret — 讯飞 APISecret
 → volcAsrApiKey / volcAsrAppKey / volcAsrAccessKey / volcAsrResourceId — 火山引擎 ASR（需在火山控制台开通流式语音识别后获取）
 
-切换识别服务商：voiceProvider 字段（aliyun（默认）/ tencent / xunfei / volc / 本地 Whisper）
+切换识别服务商：voiceProvider 字段（local（默认，Windows/macOS 系统识别）/ aliyun / tencent / xunfei / volcengine）
 
 TTS 配置字段（POST /settings/tts）：
-→ ttsProvider — 服务商（doubao/minimax/openai/elevenlabs/volcano）
+→ ttsProvider — 服务商（system（默认免费）/ doubao / minimax / openai / elevenlabs / volcano；云端选项可能收费）
 → ttsVoiceId — 音色 ID
 → doubaoKey — 豆包方舟 API Key
 → doubaoAccessKey — 火山引擎 Access Key（豆包备用）

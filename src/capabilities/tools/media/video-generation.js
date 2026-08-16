@@ -4,6 +4,7 @@ import path from 'path'
 import { emitEvent } from '../../../events.js'
 import { pushMessage } from '../../../inbound-message.js'
 import { getSeedanceConfig } from '../../../config.js'
+import { getMediaProviderRuntimeConfig } from '../../../media-provider-config.js'
 import { paths } from '../../../paths.js'
 import { SANDBOX_ROOT } from '../../sandbox.js'
 
@@ -121,8 +122,8 @@ function pruneVideoDir() {
 }
 
 // 把 Ark 返回的 video_url 下载到 sandbox/videos，返回可直接播放的本地 HTTP 路径
-async function downloadGeneratedVideo(videoUrl, jobId) {
-  const res = await fetch(videoUrl, { signal: AbortSignal.timeout(120000) })
+async function downloadGeneratedVideo(videoUrl, jobId, headers = {}) {
+  const res = await fetch(videoUrl, { headers, signal: AbortSignal.timeout(120000) })
   if (!res.ok) throw new Error(`下载生成视频失败：HTTP ${res.status}`)
   const buf = Buffer.from(await res.arrayBuffer())
   fs.mkdirSync(SEEDANCE_VIDEO_DIR, { recursive: true })
@@ -130,6 +131,100 @@ async function downloadGeneratedVideo(videoUrl, jobId) {
   fs.writeFileSync(path.join(SEEDANCE_VIDEO_DIR, fname), buf)
   pruneVideoDir()
   return `/media/video/${encodeURIComponent(fname)}`
+}
+
+async function imageForGemini(value) {
+  const source = String(value || '').trim()
+  if (!source) return null
+  const dataMatch = /^data:(image\/[\w.+-]+);base64,(.+)$/i.exec(source)
+  if (dataMatch) return { inlineData: { data: dataMatch[2], mimeType: dataMatch[1] } }
+  const response = await fetch(source, { signal: AbortSignal.timeout(30000) })
+  if (!response.ok) throw new Error(`Unable to load video reference image: HTTP ${response.status}`)
+  return { inlineData: {
+    data: Buffer.from(await response.arrayBuffer()).toString('base64'),
+    mimeType: response.headers.get('content-type')?.split(';')[0] || 'image/png',
+  } }
+}
+
+async function geminiPollLoop({ taskId, jobId, apiKey, prompt = '', mode = 'text', ratio = '', resolution = '', duration = '' }) {
+  const deadline = Date.now() + SEEDANCE_MAX_POLL_MS
+  const baseURL = 'https://generativelanguage.googleapis.com/v1beta'
+  const headers = { 'x-goog-api-key': apiKey }
+  try {
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, SEEDANCE_POLL_INTERVAL_MS))
+      let data
+      try {
+        const response = await fetch(`${baseURL}/${taskId.replace(/^\//, '')}`, { headers, signal: AbortSignal.timeout(20000) })
+        data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          emitAIVideo('error', { jobId, message: `Gemini Veo query failed: ${data?.error?.message || `HTTP ${response.status}`}` })
+          return
+        }
+      } catch { continue }
+
+      if (!data.done) {
+        emitAIVideo('progress', { jobId, status: 'running' })
+        continue
+      }
+      if (data.error) {
+        const message = data.error.message || 'Gemini Veo generation failed'
+        emitAIVideo('error', { jobId, message })
+        notifyAgentVideoDone({ prompt, mode, ok: false, reason: message })
+        return
+      }
+      const sample = data?.response?.generateVideoResponse?.generatedSamples?.[0]
+        || data?.response?.generatedVideos?.[0]
+        || data?.result?.generatedVideos?.[0]
+      const videoUrl = sample?.video?.uri || sample?.video?.url || sample?.uri
+      if (!videoUrl) {
+        emitAIVideo('error', { jobId, message: 'Gemini Veo completed without a video URL' })
+        return
+      }
+      const localUrl = await downloadGeneratedVideo(videoUrl, jobId, headers)
+      emitAIVideo('ready', { jobId, videoUrl: localUrl })
+      addHistory({ jobId, provider: 'gemini', mode, prompt, ratio, resolution, duration, doneAt: Date.now() })
+      emitEvent('action', { tool: 'aivideo_panel', summary: 'Gemini Veo video completed', detail: jobId })
+      notifyAgentVideoDone({ prompt, mode, ok: true })
+      return
+    }
+    emitAIVideo('error', { jobId, message: 'Gemini Veo generation timed out after 8 minutes' })
+    notifyAgentVideoDone({ prompt, mode, ok: false, reason: 'generation timeout' })
+  } finally {
+    removePending(taskId)
+  }
+}
+
+async function submitGeminiVideo({ apiKey, model, prompt, images, ratio, resolution, duration, mode }) {
+  const instance = { prompt }
+  if (images[0]) instance.image = await imageForGemini(images[0])
+  if (images[1]) instance.lastFrame = await imageForGemini(images[1])
+  const supportedDuration = [4, 6, 8].reduce((best, value) => Math.abs(value - duration) < Math.abs(best - duration) ? value : best, 6)
+  const parameters = {
+    aspectRatio: ratio === '9:16' ? '9:16' : '16:9',
+    resolution: resolution === '1080p' ? '1080p' : '720p',
+    durationSeconds: String(supportedDuration),
+    numberOfVideos: 1,
+  }
+  if (parameters.resolution === '1080p') parameters.durationSeconds = '8'
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:predictLongRunning`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ instances: [instance], parameters }),
+    signal: AbortSignal.timeout(30000),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data?.error?.message || `Gemini Veo HTTP ${response.status}`)
+  const taskId = data.name
+  if (!taskId) throw new Error('Gemini Veo response did not include an operation name')
+
+  const jobId = newVideoJobId()
+  emitAIVideo('show', { jobId, mode, prompt: prompt.slice(0, 120), ratio: parameters.aspectRatio, resolution: parameters.resolution, duration: parameters.durationSeconds, status: 'queued' })
+  emitEvent('action', { tool: 'aivideo_panel', summary: 'Submitted Gemini Veo video', detail: prompt.slice(0, 60) })
+  addPending({ provider: 'gemini', taskId, jobId, mode, prompt: prompt.slice(0, 120), ratio: parameters.aspectRatio, resolution: parameters.resolution, duration: parameters.durationSeconds, createdAt: Date.now() })
+  geminiPollLoop({ taskId, jobId, apiKey, prompt: prompt.slice(0, 120), mode, ratio: parameters.aspectRatio, resolution: parameters.resolution, duration: parameters.durationSeconds })
+    .catch(error => { emitAIVideo('error', { jobId, message: error.message }); removePending(taskId) })
+  return { taskId, jobId }
 }
 
 // 后台轮询任务直到终态，全程 emit 面板事件；不返回给模型
@@ -202,7 +297,13 @@ const SEEDANCE_NOT_CONFIGURED_GUIDE = 'AI 视频生成需要先配置火山方�
 // action=generate（默认）→ 直接提交生成
 export async function execGenerateVideo(args = {}) {
   const action = String(args.action || 'generate').trim()
-  const { apiKey, model, baseURL, configured } = getSeedanceConfig()
+  const mediaConfig = getMediaProviderRuntimeConfig()
+  const videoProvider = mediaConfig.videoProvider
+  const seedanceConfig = getSeedanceConfig()
+  const providerConfig = videoProvider === 'gemini'
+    ? { apiKey: mediaConfig.geminiApiKey, model: mediaConfig.geminiVideoModel, baseURL: '', configured: !!mediaConfig.geminiApiKey }
+    : seedanceConfig
+  const { apiKey, model, baseURL, configured } = providerConfig
 
   // 只打开空白面板：无论是否已配置都打开（未配置时面板内会提示去配 key）。
   // 用户在面板里自助填写并点“生成”（前端直连 /aivideo/generate）。
@@ -213,7 +314,9 @@ export async function execGenerateVideo(args = {}) {
       ok: true, tool: 'aivideo_panel', action: 'open', configured,
       message: configured
         ? 'AI 视频生成面板已打开（空白输入态）。用户可以在面板里直接填写提示词、可选地拖入一张参考图，然后点“生成”。你不需要替用户编写提示词或自动开始生成，简短确认一句即可。'
-        : 'AI 视频生成面板已打开，但尚未配置火山方舟（Seedance）key。请引导用户发送「火山视频 你的APIKey」完成配置；面板里也已经显示了同样的提示。',
+        : videoProvider === 'gemini'
+          ? 'AI video panel opened, but Gemini Veo is not configured. Ask the user to add a Gemini API key in Settings → GAI Control → Media. Veo API usage is paid-only.'
+          : 'AI 视频生成面板已打开，但尚未配置火山方舟（Seedance）key。请引导用户发送「火山视频 你的APIKey」完成配置；面板里也已经显示了同样的提示。',
     })
   }
 
@@ -230,7 +333,10 @@ export async function execGenerateVideo(args = {}) {
 
   // 生成：未配置则返回引导（不硬拦截，交给模型/面板转述）
   if (!configured) {
-    return JSON.stringify({ ok: false, tool: 'aivideo_panel', error: 'not_configured', guide: SEEDANCE_NOT_CONFIGURED_GUIDE })
+    const guide = videoProvider === 'gemini'
+      ? 'Gemini Veo requires a Gemini API key. Open Settings → GAI Control → Media, select Gemini Veo, and add the key. Veo API usage is paid-only, so confirm pricing before generating.'
+      : SEEDANCE_NOT_CONFIGURED_GUIDE
+    return JSON.stringify({ ok: false, tool: 'aivideo_panel', error: 'not_configured', guide })
   }
 
   const prompt = String(args.prompt || args.text || '').trim()
@@ -265,6 +371,15 @@ export async function execGenerateVideo(args = {}) {
 
   const body = { model, content, ratio, resolution, duration }
   const mode = images.length >= 2 ? 'flf' : images.length === 1 ? 'image' : 'text'
+
+  if (videoProvider === 'gemini') {
+    try {
+      const { taskId, jobId } = await submitGeminiVideo({ apiKey, model, prompt, images, ratio, resolution, duration, mode })
+      return JSON.stringify({ ok: true, tool: 'aivideo_panel', provider: 'gemini', task_id: taskId, jobId, mode, message: 'Gemini Veo video task submitted. It will download and play automatically when ready.' })
+    } catch (error) {
+      return JSON.stringify({ ok: false, tool: 'aivideo_panel', provider: 'gemini', error: `Gemini Veo task failed: ${error.message}` })
+    }
+  }
 
   let createData
   try {
@@ -345,19 +460,24 @@ export function resumePendingVideoJobs() {
   if (fresh.length !== list.length) writePending(fresh)
   if (!fresh.length) return
 
-  const { apiKey, baseURL, configured } = getSeedanceConfig()
-  if (!configured) { writePending([]); return }  // 没 key 无法恢复，清空避免无限残留
+  const seedance = getSeedanceConfig()
+  const media = getMediaProviderRuntimeConfig()
+  const resumable = fresh.filter(entry => entry.provider === 'gemini' ? !!media.geminiApiKey : seedance.configured)
+  if (resumable.length !== fresh.length) writePending(resumable)
+  if (!resumable.length) return
 
   // 延迟几秒，等前端 SSE 连上后再发事件，避免恢复太快前端收不到
   setTimeout(() => {
-    for (const e of fresh) {
+    for (const e of resumable) {
       emitAIVideo('show', {
         jobId: e.jobId, mode: e.mode, prompt: e.prompt,
         ratio: e.ratio, resolution: e.resolution, duration: e.duration, status: 'running',
       })
-      seedancePollLoop({ taskId: e.taskId, jobId: e.jobId, baseURL: e.baseURL || baseURL, apiKey, prompt: e.prompt, mode: e.mode, ratio: e.ratio, resolution: e.resolution, duration: e.duration })
-        .catch(() => removePending(e.taskId))
+      const loop = e.provider === 'gemini'
+        ? geminiPollLoop({ taskId: e.taskId, jobId: e.jobId, apiKey: media.geminiApiKey, prompt: e.prompt, mode: e.mode, ratio: e.ratio, resolution: e.resolution, duration: e.duration })
+        : seedancePollLoop({ taskId: e.taskId, jobId: e.jobId, baseURL: e.baseURL || seedance.baseURL, apiKey: seedance.apiKey, prompt: e.prompt, mode: e.mode, ratio: e.ratio, resolution: e.resolution, duration: e.duration })
+      loop.catch(() => removePending(e.taskId))
     }
-    console.log(`[aivideo] 已恢复 ${fresh.length} 个未完成的视频生成任务`)
+    console.log(`[aivideo] 已恢复 ${resumable.length} 个未完成的视频生成任务`)
   }, 4000)
 }

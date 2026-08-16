@@ -3,16 +3,23 @@
 // 统一返回 Node.js Readable stream，供 api.js pipe 到 HTTP 响应
 import '../network-proxy.js'
 import { Readable, Transform } from 'stream'
+import { synthesizeSystemTTS } from './system-tts.js'
 
 export const TTS_PROVIDERS = [
-  { id: 'doubao',      label: '豆包（方舟）',   streaming: true  },
-  { id: 'minimax',     label: 'MiniMax',       streaming: false },
-  { id: 'openai',      label: 'OpenAI TTS',   streaming: true  },
-  { id: 'elevenlabs',  label: 'ElevenLabs',   streaming: true  },
-  { id: 'volcano',     label: '火山引擎',       streaming: false },
+  { id: 'system',      label: '系統內建語音（免費）', streaming: false, paid: false },
+  { id: 'doubao',      label: '豆包（方舟）',   streaming: true,  paid: true },
+  { id: 'minimax',     label: 'MiniMax',       streaming: false, paid: true },
+  { id: 'openai',      label: 'OpenAI TTS',   streaming: true,  paid: true },
+  { id: 'elevenlabs',  label: 'ElevenLabs',   streaming: true,  paid: true },
+  { id: 'volcano',     label: '火山引擎',       streaming: false, paid: true },
 ]
 
 export const TTS_VOICES = {
+  system: [
+    { id: 'system-auto', label: '自動（中英自動選擇）' },
+    { id: 'system-zh', label: '系統中文語音' },
+    { id: 'system-en', label: 'System English voice' },
+  ],
   doubao: [
     { id: 'zh_female_xiaohe_uranus_bigtts',          label: '小何 2.0（女声，通用）' },
     { id: 'zh_female_vv_uranus_bigtts',              label: 'Vivi 2.0（女声，通用/多语种）' },
@@ -66,6 +73,11 @@ export const TTS_VOICES = {
 // 这是根治"朗读经常失败"的关键：以前要冲到各家 API 才裸抛"缺少 API Key"，
 // 现在合成前就能给出可执行的中文引导（不硬拦截，由模型/前端转述）。
 export const TTS_PROVIDER_REQUIREMENTS = {
+  system: {
+    label: '系統內建語音',
+    groups: [],
+    guide: '系統內建語音不需要 API Key。',
+  },
   doubao: {
     label: '豆包（方舟）',
     groups: [{ keys: ['doubaoKey'], label: 'API Key' }],
@@ -202,7 +214,7 @@ async function streamDoubao({
   const resolvedResourceId = resolveDoubaoResourceId(speaker, resourceId)
   const headers = {
     'X-Api-Resource-Id': resolvedResourceId,
-    'X-Api-Request-Id': `blm_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    'X-Api-Request-Id': `gai_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     'Content-Type': 'application/json',
   }
   headers['X-Api-Key'] = apiKey
@@ -220,7 +232,7 @@ async function streamDoubao({
     method: 'POST',
     headers,
     body: JSON.stringify({
-      user: { uid: 'bailongma' },
+      user: { uid: 'gai-ai' },
       req_params: reqParams,
     }),
   })
@@ -327,7 +339,7 @@ async function streamVolcano({ text, voiceId = 'BV001_streaming', appId, token }
     },
     body: JSON.stringify({
       app: { appid: appId, token, cluster: 'volcano_tts' },
-      user: { uid: 'bailongma' },
+      user: { uid: 'gai-ai' },
       audio: {
         voice_type: voiceId,
         encoding: 'mp3',
@@ -336,7 +348,7 @@ async function streamVolcano({ text, voiceId = 'BV001_streaming', appId, token }
         pitch_ratio: 1.0,
       },
       request: {
-        reqid: `blm_${Date.now()}`,
+        reqid: `gai_${Date.now()}`,
         text,
         text_type: 'plain',
         operation: 'query',
@@ -359,6 +371,8 @@ async function streamVolcano({ text, voiceId = 'BV001_streaming', appId, token }
 export async function streamTTS({ text, provider, voiceId, keys = {} }) {
   if (!text?.trim()) throw new Error('TTS: 文本为空')
   switch (provider) {
+    case 'system':
+      return synthesizeSystemTTS({ text, voiceId })
     case 'doubao':
       return streamDoubao({
         text,

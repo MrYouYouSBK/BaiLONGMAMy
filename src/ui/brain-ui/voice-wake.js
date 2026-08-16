@@ -11,10 +11,9 @@
 // 退场判断三条件:
 //   ① 用户要求退下 / ② 任务完成 —— 属 Agent 自判:后端 voice_retire 工具发 SSE 事件,本侧收到后
 //      等本轮回复说完(球离开 speaking)再退场(见 retireArmed),不切断告别语;用户又开口则取消。
-//   ③ 一分钟内没有识别到新语音 → 退场。计时只在「空闲等用户」时累积:Agent 思考/调用工具/说话
-//      期间会刷新活跃时刻,避免长回复中途被误关。
+//   ③ 默认无限等待；用户或 Agent 明确要求退场时才结束会话。
 
-const IDLE_DISMISS_MS = 60000; // 条件三:60s 无新语音(且系统空闲)→ 退场
+const IDLE_DISMISS_MS = 0; // 0 = unlimited listening period
 const IDLE_CHECK_MS = 2000;
 const ORB_EXIT_MS = 320;       // 退场动画时长上限,过后才真停会话(与 voice-orb.html 0.28s 过渡对齐)
 const FRAME_MIN_MS = 33;       // 推帧给球窗的最小间隔(≈30fps)
@@ -23,7 +22,8 @@ const FRAME_MIN_MS = 33;       // 推帧给球窗的最小间隔(≈30fps)
 const BUSY_SK = new Set(['recognizing', 'processing', 'speaking', 'event', 'done']);
 
 export function createWakeFlow(core) {
-  const orb = (typeof window !== 'undefined' && window.bailongma && window.bailongma.wake) || null;
+  const desktop = typeof window !== 'undefined' ? (window.gai || window.bailongma) : null;
+  const orb = desktop?.wake || null;
 
   let active = false;          // 唤醒会话进行中
   let inConversation = false;  // 已听到语音、转入正常对话
@@ -51,6 +51,7 @@ export function createWakeFlow(core) {
   function startIdleWatch() {
     stopIdleWatch();
     markActive();
+    if (IDLE_DISMISS_MS <= 0) return;
     idleTimer = setInterval(() => {
       if (!active) return;
       if (Date.now() - lastActiveTs >= IDLE_DISMISS_MS) dismiss();
@@ -147,6 +148,7 @@ export function createWakeFlow(core) {
     retirePending = false; retireArmed = false;
     lastSk = null; lastText = null; lastThinking = null; lastFrameTs = 0;
     orb?.orbEnter();
+    desktop?.wake?.setConversationActive?.(true);
     startIdleWatch();
     if (!core.micActive) {
       const stream = await core.startSession();
@@ -170,6 +172,7 @@ export function createWakeFlow(core) {
     retirePending = false; retireArmed = false;
     stopIdleWatch();
     orb?.orbExit();
+    desktop?.wake?.setConversationActive?.(false);
     const token = ++dismissToken;
     setTimeout(() => {
       if (token !== dismissToken || active) return;

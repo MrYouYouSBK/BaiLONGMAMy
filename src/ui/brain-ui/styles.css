@@ -1818,7 +1818,7 @@ body {
 .settings-tab { display: none; }
 .settings-tab.active { display: block; }
 
-/* GAI AI bilingual control center */
+/* GAI AI multilingual desktop control center */
 .gai-control-hero {
   display: flex;
   justify-content: space-between;
@@ -1879,6 +1879,15 @@ body {
 .gai-links a:hover { text-decoration: underline; }
 .gai-inline-feedback { min-height: 14px; margin-top: 8px; color: var(--ok); font: 9px/1.45 "JetBrains Mono", ui-monospace, monospace; word-break: break-word; }
 .gai-inline-feedback.error { color: var(--warm); }
+.gai-card hr { margin: 13px 0 8px; border: 0; border-top: 1px solid var(--line); }
+.gai-card label.gai-switch-row { grid-template-columns: minmax(0, 1fr) auto; }
+.gai-card label.gai-switch-row input[type="checkbox"] {
+  width: 36px; min-width: 36px; height: 19px; justify-self: end; accent-color: var(--cool); cursor: pointer;
+}
+.gai-card button:disabled { opacity: .42; cursor: not-allowed; }
+#gai-reminder-list { margin-top: 10px; }
+#gai-reminder-list .gai-history-item { display: inline-flex; align-items: center; gap: 7px; cursor: default; }
+#gai-reminder-list .gai-history-item button { border: 0; background: transparent; color: var(--warm); cursor: pointer; font-size: 15px; line-height: 1; }
 
 @media (max-width: 760px) {
   .gai-control-grid { grid-template-columns: 1fr; }
@@ -3958,7 +3967,7 @@ body.person-card-mode .person-card-panel,
   align-items: center;
 }
 
-/* Tab 分组分隔线（配置 | 关于白龙马） */
+/* Tab 分组分隔线（配置 | 关于 GAI AI） */
 .dp-tab-divider {
   width: 1px;
   height: 14px;
@@ -4557,3 +4566,35 @@ body.typhoon-mode .console > #voice-panel .voice-transcript { flex: 1; max-width
   color: #a9ddf5; font-size: 17px; line-height: 1; cursor: pointer;
 }
 .ty-exit-btn:hover { color: #effcff; background: rgba(18, 94, 138, 0.88); }
+
+/* Entry ceremony — short on every launch, respectful of reduced-motion. */
+.gai-entry-ceremony {
+  position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 48%, rgba(35, 89, 120, .18), transparent 32%), #02060a;
+  opacity: 1; transition: opacity .55s ease, visibility .55s ease;
+}
+.gai-entry-ceremony.is-complete { opacity: 0; visibility: hidden; pointer-events: none; }
+.gai-entry-scan { position: absolute; inset: -20% 0 auto; height: 32%; background: linear-gradient(180deg, transparent, rgba(103, 222, 255, .09), transparent); opacity: 0; }
+.gai-entry-ceremony.is-active .gai-entry-scan { animation: gai-entry-scan 1.25s .1s cubic-bezier(.2,.7,.2,1) both; }
+.gai-entry-core { position: relative; width: 150px; height: 150px; display: grid; place-items: center; transform: scale(.5); opacity: 0; }
+.gai-entry-ceremony.is-active .gai-entry-core { animation: gai-core-in .9s .12s cubic-bezier(.1,.8,.2,1) forwards; }
+.gai-entry-orbit { position: absolute; inset: 0; border: 1px solid rgba(99, 211, 255, .55); border-radius: 50%; box-shadow: 0 0 35px rgba(68, 185, 255, .12); }
+.gai-entry-orbit::after { content: ''; position: absolute; width: 7px; height: 7px; border-radius: 50%; top: 5px; left: 50%; background: #8cf2ff; box-shadow: 0 0 16px #5be4ff; }
+.orbit-a { animation: gai-orbit 2.8s linear infinite; }
+.orbit-b { inset: 19px; border-color: rgba(152, 119, 255, .5); animation: gai-orbit 2s linear reverse infinite; }
+.gai-entry-mark { width: 70px; height: 70px; display: grid; place-items: center; border: 1px solid rgba(141, 229, 255, .7); background: rgba(6, 21, 32, .9); color: #dcfaff; font-size: 17px; letter-spacing: .2em; text-indent: .2em; box-shadow: inset 0 0 28px rgba(79, 202, 255, .12), 0 0 45px rgba(49, 190, 255, .18); }
+.gai-entry-copy { position: absolute; top: calc(50% + 105px); display: grid; gap: 7px; text-align: center; opacity: 0; transform: translateY(10px); }
+.gai-entry-ceremony.is-active .gai-entry-copy { animation: gai-copy-in .7s .7s ease forwards; }
+.gai-entry-copy strong { color: #e7faff; font-size: 21px; letter-spacing: .24em; text-indent: .24em; }
+.gai-entry-copy span { color: #70b7cd; font-size: 10px; letter-spacing: .3em; text-indent: .3em; }
+.gai-paid-note { color: #ef4444 !important; }
+.gai-search-history { display: flex; flex-wrap: wrap; gap: 6px; }
+.gai-history-item { border: 1px solid rgba(110,160,190,.28); background: rgba(50,90,110,.1); color: var(--ink2); padding: 4px 8px; border-radius: 999px; cursor: pointer; font-size: 11px; }
+@keyframes gai-entry-scan { 0% { transform: translateY(-100%); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(470%); opacity: 0; } }
+@keyframes gai-core-in { 0% { transform: scale(.5) rotate(-12deg); opacity: 0; } 70% { transform: scale(1.05) rotate(1deg); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes gai-copy-in { to { opacity: 1; transform: translateY(0); } }
+@keyframes gai-orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .gai-entry-scan, .gai-entry-orbit { animation: none !important; }
+  .gai-entry-core, .gai-entry-copy { animation-duration: .01ms !important; animation-delay: 0s !important; }
+}

@@ -35,9 +35,12 @@ export function initVoicePanel({
   async function toggleVoice() {
     if (!core.micActive) {
       // startSession 内部已处理失败回退 + 状态同步
-      return Boolean(await core.startSession());
+      const started = Boolean(await core.startSession());
+      if (started) (window.gai || window.bailongma)?.wake?.setConversationActive?.(true);
+      return started;
     }
     core.stopSession();
+    (window.gai || window.bailongma)?.wake?.setConversationActive?.(false);
     return false;
   }
 
@@ -46,7 +49,7 @@ export function initVoicePanel({
     cancelAutoSend: continuous.cancelAutoSend,
   });
 
-  // 唤醒会话编排（命中「小白龙」→ 悬浮球入场 → 10s 无话退场）。非 Electron 环境内部自动失能。
+  // 唤醒会话编排（命中 GAI AI → 悬浮球入场 → 无限等待明确指令）。非 Electron 环境内部自动失能。
   const wake = createWakeFlow(core);
 
   // 安装模式策略钩子：continuous = 会话默认策略；PTT 通过 core.pttHolding 在其上叠加。
@@ -80,7 +83,10 @@ export function initVoicePanel({
       continuous.clearNoSpeechTimer();
       core.resumeSession(false);
     },
-    stop: () => core.stopSession(),
+    stop: () => {
+      core.stopSession();
+      (window.gai || window.bailongma)?.wake?.setConversationActive?.(false);
+    },
     setTTSAnalyser: (analyser) => core.setTTSAnalyser(analyser),
     pttStart: ptt.pttStart,
     pttEnd: ptt.pttEnd,

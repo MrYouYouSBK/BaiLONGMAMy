@@ -66,7 +66,7 @@ export function calculateNextDueAt(type, config, fromDate = new Date()) {
 }
 
 function buildSystemMessage(targetId, taskText) {
-  return `I am the system. Based on the reminder you set, you now need to perform this task for user ${targetId}: ${taskText}. Handle it immediately, and when needed use send_message to send the result to ${targetId}.`
+  return `I am the system. A user timeline is now due for ${targetId}: ${taskText}. Complete every safe and already-authorized step automatically. Verify evidence before claiming completion, follow up on unfinished dependencies, and ask ${targetId} for one concrete action only when their input or permission is required. Use send_message to deliver the result or follow-up.`
 }
 
 function formatReminderRow(r) {
@@ -174,5 +174,4 @@ export async function execManageReminder(args, context = {}) {
   emitEvent('reminder_created', { id: Number(result.lastInsertRowid), user_id: resolvedTargetId, due_at: isoDueAt, task: taskText, recurrence_type: kind, recurrence_config: config })
   return `周期提醒已创建：#${result.lastInsertRowid} (${kind})，下次触发 ${isoDueAt}，目标用户 ${resolvedTargetId}`
 }
-
 

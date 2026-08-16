@@ -1,12 +1,12 @@
-![GAI AI](https://github.com/MrYouYouSBK/BaiLONGMAMy/blob/main/images/AGI128k.jpg)
+![GAI AI](https://github.com/MrYouYouSBK/GAI_Ai.My/blob/main/images/AGI128k.jpg)
 
 # GAI AI
 
-> **GAI AI 3.0 Community Build** — 从本版本起应用正式更名为 GAI AI。项目继续基于 MIT License 源码维护并保留原作者版权与许可证；旧版用户数据、应用 ID 与自动更新链保持兼容。首次启动直接进入 GAI Offline Super，不需要 API Key、充值或预先安装本地模型。
+> **GAI AI 3.2 Community Build** — 多语音、常驻唤醒、螢幕分享、时间线提醒和 Apple Silicon 本地推理集中在同一个桌面控制中心。项目继续基于 MIT License 源码维护并保留原作者版权与许可证；旧版用户数据、应用 ID 与自动更新链保持兼容。
 
 ## 零配置运行与模型融合
 
-`v3.0.0` 提供零配置离线核心与可选增强服务；默认不请求公网定位或热点源，打开后直接进入就绪状态。
+`v3.2.0` 提供零配置离线核心与可选增强服务；默认不请求公网定位或热点源，打开后直接进入就绪状态。
 
 1. **GAI Offline Super（默认）**：无需 Key、无需充值、无需 Ollama，内置计算、换算、摘要、文本统计、JSON、密码、清单、时间与系统状态能力。
 2. **OpenAI Codex（可选）**：直接使用 ChatGPT 帐户登录，无需在 GAI AI 内配置 API Key。
@@ -16,7 +16,7 @@
 
 ## 直接下载安装包
 
-前往 [GitHub Releases](https://github.com/MrYouYouSBK/BaiLONGMAMy/releases) 下载：
+前往 [GitHub Releases](https://github.com/MrYouYouSBK/GAI_Ai.My/releases) 下载：
 
 - Windows 10/11 x64：`GAI-AI-Setup-<version>.exe`
 - Apple Silicon Mac（M1/M2/M3/M4/M5）：`GAI-AI-<version>-mac-arm64.dmg`
@@ -24,7 +24,7 @@
 
 每个版本都附带 `SHA256SUMS.txt`，可用于核对下载文件完整性。目前社区构建没有 Apple Developer ID 签名；首次在 macOS 打开时，如系统拦截，请在“系统设置 → 隐私与安全性”选择“仍要打开”。
 
-安装包由 [GitHub Actions](https://github.com/MrYouYouSBK/BaiLONGMAMy/actions/workflows/build-installers.yml) 在 Windows 与 macOS 官方托管环境中自动生成。代码合并到 `main` 后会按 `package.json` 版本自动创建或更新 `community-v*` Release；也可以手动运行工作流取得临时构建产物。
+安装包由 [GitHub Actions](https://github.com/MrYouYouSBK/GAI_Ai.My/actions/workflows/build-installers.yml) 在 Windows 与 macOS 官方托管环境中自动生成。代码合并到 `main` 后会按 `package.json` 版本自动创建或更新 `community-v*` Release；也可以手动运行工作流取得临时构建产物。
 
 GAI AI 是一个持续运行、离线优先的桌面 AI Agent。它不是一次问答结束就退出的聊天程序，而是由主循环驱动：有用户消息时优先处理，空闲时按节奏继续整理记忆、检查任务、刷新上下文，并把状态实时推送到 Brain UI。
 

@@ -15,14 +15,16 @@ if (IS_WIN) {
   } catch (_) {}
 }
 
-const { app, BrowserWindow, shell, dialog, Menu, ipcMain, Tray, nativeImage, clipboard, systemPreferences } = require('electron')
+const { app, BrowserWindow, shell, dialog, Menu, ipcMain, Tray, nativeImage, clipboard, systemPreferences, desktopCapturer, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
 const net = require('net')
 const http = require('http')
 const { EventEmitter } = require('events')
 const { pathToFileURL } = require('url')
 const { autoUpdater } = require('electron-updater')
+const { CommunityMacUpdater } = require('./community-updater.cjs')
 const wakeWord = require('./wake-word.cjs')
 const devLight = require('./dev-board-light.cjs')
 
@@ -31,7 +33,7 @@ const WINDOWS_APP_USER_MODEL_ID = 'com.xiaoyuanda.bailongma'
 
 function resolvePortableRoot() {
   if (IS_DEV) return null
-  const requestedRoot = process.env.BAILONGMA_PORTABLE_DIR?.trim()
+  const requestedRoot = (process.env.GAI_PORTABLE_DIR || process.env.BAILONGMA_PORTABLE_DIR)?.trim()
   if (requestedRoot) return path.resolve(requestedRoot)
   const exeDir = path.dirname(process.execPath)
   return fs.existsSync(path.join(exeDir, 'portable.flag')) ? exeDir : null
@@ -43,6 +45,7 @@ const IS_PORTABLE = Boolean(PORTABLE_USER_DIR)
 if (PORTABLE_USER_DIR) {
   try { fs.mkdirSync(PORTABLE_USER_DIR, { recursive: true }) } catch {}
   app.setPath('userData', PORTABLE_USER_DIR)
+  process.env.GAI_USER_DIR ||= PORTABLE_USER_DIR
   process.env.BAILONGMA_USER_DIR ||= PORTABLE_USER_DIR
 } else {
   // GAI AI v3 keeps the existing v2 profile so settings, memory and downloaded
@@ -63,6 +66,57 @@ const CODE_ROOT = app.getAppPath()
 const RESOURCE_ROOT = CODE_ROOT
 const BACKEND_ENTRY = path.join(CODE_ROOT, 'src', 'index.js')
 const STARTUP_PAGE = path.join(__dirname, 'startup.html')
+
+if (IS_MAC && process.arch === 'arm64') {
+  const threads = Math.max(2, os.cpus().length - 2)
+  process.env.GAI_INFERENCE_THREADS ||= String(threads)
+  process.env.OMP_NUM_THREADS ||= String(threads)
+  process.env.ORT_NUM_THREADS ||= String(threads)
+  process.env.UV_THREADPOOL_SIZE ||= String(Math.min(128, Math.max(8, threads * 2)))
+}
+
+const DESKTOP_PREFS_FILE = path.join(USER_DIR, 'gai-desktop-preferences.json')
+const DEFAULT_DESKTOP_PREFS = {
+  screenSharingEnabled: false,
+  startupMusicEnabled: true,
+  wakeEnabled: true,
+  wakeTrigger: 'phrase',
+  doubleClapEnabled: false,
+}
+
+function readDesktopPreferences() {
+  try { return { ...DEFAULT_DESKTOP_PREFS, ...JSON.parse(fs.readFileSync(DESKTOP_PREFS_FILE, 'utf8')) } }
+  catch { return { ...DEFAULT_DESKTOP_PREFS } }
+}
+
+let desktopPreferences = readDesktopPreferences()
+let wakeConversationActive = false
+function writeDesktopPreferences(next = {}) {
+  desktopPreferences = { ...desktopPreferences, ...next }
+  fs.mkdirSync(path.dirname(DESKTOP_PREFS_FILE), { recursive: true })
+  const temporary = `${DESKTOP_PREFS_FILE}.tmp-${process.pid}`
+  fs.writeFileSync(temporary, JSON.stringify(desktopPreferences, null, 2), 'utf8')
+  try { fs.renameSync(temporary, DESKTOP_PREFS_FILE) }
+  catch { fs.copyFileSync(temporary, DESKTOP_PREFS_FILE); try { fs.unlinkSync(temporary) } catch {} }
+  return { ...desktopPreferences }
+}
+
+function wakeRuntimeConfig() {
+  return {
+    enabled: desktopPreferences.wakeEnabled !== false,
+    trigger: desktopPreferences.wakeTrigger || 'phrase',
+    doubleClapEnabled: desktopPreferences.doubleClapEnabled === true,
+    conversationActive: wakeConversationActive,
+    ...wakeWord.getStatus(),
+  }
+}
+
+function broadcastWakeConfig() {
+  const config = wakeRuntimeConfig()
+  if (wakeProbeWindow && !wakeProbeWindow.isDestroyed()) wakeProbeWindow.webContents.send('wake:config', config)
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('wake:status', config)
+  return config
+}
 
 const STARTUP_STEPS = [
   { id: 'window', label: 'Open GAI AI', detail: 'Initialize the desktop surface' },
@@ -140,6 +194,7 @@ function emitStartupProgress(update = {}) {
 }
 
 global.bailongmaStartupProgress = emitStartupProgress
+global.gaiStartupProgress = emitStartupProgress
 
 function getAppIconPath({ trayIcon = false } = {}) {
   if (IS_WIN) return path.join(RESOURCE_ROOT, 'build', 'icon.ico')
@@ -241,12 +296,12 @@ function fileImageToDataUrl(filePath) {
   return `data:${imageMimeForPath(filePath)};base64,${bytes.toString('base64')}`
 }
 
-// 持久化日志：把 console.* 镜像到 USER_DIR/logs/bailongma.log，
+// 持久化日志：把 console.* 镜像到 USER_DIR/logs/gai-ai.log，
 // 安装版没有 stdout 的情况下，卡死/崩溃后还能 tail 这个文件复盘。
 // 简易 rotate：> 5MB 时把当前文件改名 .old（覆盖上一份 .old），下次写入重开。
 const LOG_DIR = path.join(USER_DIR, 'logs')
-const LOG_FILE = path.join(LOG_DIR, 'bailongma.log')
-const LOG_FILE_OLD = path.join(LOG_DIR, 'bailongma.old.log')
+const LOG_FILE = path.join(LOG_DIR, 'gai-ai.log')
+const LOG_FILE_OLD = path.join(LOG_DIR, 'gai-ai.old.log')
 const LOG_MAX_BYTES = 5 * 1024 * 1024
 try { fs.mkdirSync(LOG_DIR, { recursive: true }) } catch {}
 function rotateLogIfNeeded() {
@@ -339,6 +394,7 @@ let terminalStreamWindow = null
 let terminalStreamWindowStreamId = null
 let wakeProbeWindow = null
 let voiceOrbWindow = null
+let desktopUpdater = autoUpdater
 
 // 后端通过 global.focusBannerBridge 控制横幅窗口
 const focusBannerBridge = new EventEmitter()
@@ -346,12 +402,24 @@ global.focusBannerBridge = focusBannerBridge
 const terminalStreamBridge = new EventEmitter()
 global.terminalStreamBridge = terminalStreamBridge
 global.getBailongmaWindowLayoutSnapshot = getBailongmaWindowLayoutSnapshot
+global.getGaiWindowLayoutSnapshot = getBailongmaWindowLayoutSnapshot
 global.bailongmaAppControl = {
   restart() {
     console.log('[main] restart requested')
     app.isQuiting = true
     app.relaunch()
     app.quit()
+  },
+}
+global.gaiAppControl = global.bailongmaAppControl
+
+global.gaiDesktopNotificationBridge = {
+  show(payload = {}) {
+    if (!Notification.isSupported()) return false
+    const notice = new Notification({ title: String(payload.title || 'GAI AI'), body: String(payload.body || payload.message || '') })
+    notice.on('click', () => showMainWindow().catch(() => {}))
+    notice.show()
+    return true
   },
 }
 
@@ -438,6 +506,9 @@ function validatePackagedNativeModules() {
 }
 
 async function bootstrapBackend(port) {
+  process.env.GAI_USER_DIR ||= USER_DIR
+  process.env.GAI_RESOURCES_DIR ||= RESOURCE_ROOT
+  process.env.GAI_PORT = String(port)
   process.env.BAILONGMA_USER_DIR ||= USER_DIR
   process.env.BAILONGMA_RESOURCES_DIR ||= RESOURCE_ROOT
   process.env.BAILONGMA_PORT = String(port)
@@ -528,7 +599,7 @@ async function createWindow({ loadStartup = true } = {}) {
       contextIsolation: true,
       nodeIntegration: false,
       preload: path.join(__dirname, 'preload.cjs'),
-      // 后台唤醒会话：主窗口隐藏到托盘时仍在跑实时 ASR + 唤醒计时器(10s 监听/自动发送/看门狗)。
+      // 后台唤醒会话：主窗口隐藏到托盘时仍在跑实时 ASR、无限监听、自动发送与看门狗。
       // 默认隐藏窗口的 timer/rAF 会被节流到 ~1Hz，会拖垮这些计时器 —— 关掉节流保证后台照常工作。
       backgroundThrottling: false,
       // 唤醒由后台命中触发(无用户手势),开麦的 AudioContext 默认会因自动播放策略停在 suspended、
@@ -539,14 +610,27 @@ async function createWindow({ loadStartup = true } = {}) {
   })
 
   // 授予麦克风权限（语音输入需要）
-  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    if (permission === 'media') return callback(true)
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details = {}) => {
+    if (permission === 'media') {
+      const mediaTypes = Array.isArray(details.mediaTypes) ? details.mediaTypes : []
+      return callback(!mediaTypes.includes('display-capture'))
+    }
     callback(false)
   })
   mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
     if (permission === 'media') return true
     return false
   })
+  mainWindow.webContents.session.setDisplayMediaRequestHandler(async (_request, callback) => {
+    if (!desktopPreferences.screenSharingEnabled) return callback({})
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1080 } })
+      callback(sources[0] ? { video: sources[0] } : {})
+    } catch (error) {
+      console.warn('[screen-sharing] display request failed:', error?.message || error)
+      callback({})
+    }
+  }, { useSystemPicker: false })
 
   // 窗口级快捷键（不用 globalShortcut，避免劫持其他应用的 F11/Ctrl+R 等）
   //   F12      → 切换 DevTools
@@ -1144,17 +1228,20 @@ function createWakeProbeWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       preload: path.join(__dirname, 'wake-probe-preload.cjs'),
+      partition: 'persist:gai-wake-probe',
       autoplayPolicy: 'no-user-gesture-required', // 隐藏窗口无用户手势也能启动 AudioContext
       backgroundThrottling: false,                // 后台不降频,保证常开采集不被节流
     },
   })
 
-  wakeProbeWindow.webContents.session.setPermissionRequestHandler((wc, permission, callback) => {
-    callback(permission === 'media')
+  wakeProbeWindow.webContents.session.setPermissionRequestHandler((wc, permission, callback, details = {}) => {
+    const mediaTypes = Array.isArray(details.mediaTypes) ? details.mediaTypes : []
+    callback(permission === 'media' && !mediaTypes.includes('video') && !mediaTypes.includes('display-capture'))
   })
   wakeProbeWindow.webContents.session.setPermissionCheckHandler((wc, permission) => permission === 'media')
 
   wakeProbeWindow.loadFile(path.join(__dirname, 'wake-probe.html'))
+  wakeProbeWindow.webContents.once('did-finish-load', broadcastWakeConfig)
   wakeProbeWindow.on('closed', () => { wakeProbeWindow = null })
 }
 
@@ -1166,6 +1253,8 @@ ipcMain.on('wake:pcm', (_e, buffer) => {
 ipcMain.on('wake:status', (_e, info) => {
   console.log('[wake-probe] 耳朵状态:', info?.status, info?.detail || '')
 })
+
+ipcMain.handle('wake:get-config', () => wakeRuntimeConfig())
 
 // ─── 语音唤醒第二步:独立置顶悬浮球窗口 ───
 // 命中「小白龙」→ 主窗口渲染层(voice-wake.js)开会话 + 经下列 IPC 驱动这个纯视觉球窗:
@@ -1242,21 +1331,21 @@ function setupAutoUpdater() {
     return
   }
 
-  if (IS_MAC) autoUpdater.channel = `latest-${process.arch}`
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
-  autoUpdater.autoRunAppAfterInstall = true
+  desktopUpdater = IS_MAC ? new CommunityMacUpdater({ app, arch: process.arch }) : autoUpdater
+  desktopUpdater.autoDownload = true
+  desktopUpdater.autoInstallOnAppQuit = true
+  desktopUpdater.autoRunAppAfterInstall = true
 
-  autoUpdater.on('checking-for-update', () => {
+  desktopUpdater.on('checking-for-update', () => {
     sendUpdaterStatus({ stage: 'checking' })
   })
 
-  autoUpdater.on('update-available', info => {
+  desktopUpdater.on('update-available', info => {
     console.log('[updater] update available', info?.version)
     sendUpdaterStatus({ stage: 'available', version: info?.version, automatic: true })
   })
 
-  autoUpdater.on('download-progress', progress => {
+  desktopUpdater.on('download-progress', progress => {
     sendUpdaterStatus({
       stage: 'downloading',
       percent: Number(progress?.percent || 0),
@@ -1265,32 +1354,32 @@ function setupAutoUpdater() {
     })
   })
 
-  autoUpdater.on('update-downloaded', info => {
+  desktopUpdater.on('update-downloaded', info => {
     console.log('[updater] update downloaded', info?.version)
     sendUpdaterStatus({ stage: 'downloaded', version: info?.version, installOnQuit: true, automatic: true })
   })
 
-  autoUpdater.on('update-not-available', info => {
+  desktopUpdater.on('update-not-available', info => {
     sendUpdaterStatus({
       stage: 'up-to-date',
       version: info?.version || app.getVersion(),
     })
   })
 
-  autoUpdater.on('error', err => {
+  desktopUpdater.on('error', err => {
     const message = err?.message || String(err || 'Update failed')
     console.warn('[updater] update failed', message)
     sendUpdaterStatus({ stage: 'error', message })
   })
 
   if (!IS_DEV) {
-    autoUpdater.checkForUpdates().catch(err => {
+    desktopUpdater.checkForUpdates().catch(err => {
       // 不要静默吞掉更新检查失败。GitHub 在国内经常超时/不可达，若整段吞掉，
       // 用户会卡在「永远没有更新」且无任何痕迹。这里至少落到日志，便于排查。
       console.warn('[updater] initial check failed', err?.message || err)
     })
     const interval = setInterval(() => {
-      autoUpdater.checkForUpdates().catch(err => {
+      desktopUpdater.checkForUpdates().catch(err => {
         console.warn('[updater] periodic check failed', err?.message || err)
       })
     }, 6 * 60 * 60 * 1000)
@@ -1312,6 +1401,57 @@ ipcMain.handle('devices:request-access', async (_event, kind) => {
   } catch (error) {
     return { ok: false, error: error?.message || String(error), ...getMediaDeviceStatus() }
   }
+})
+
+ipcMain.handle('desktop-preferences:get', () => ({ ...desktopPreferences }))
+ipcMain.handle('desktop-preferences:set', (_event, updates = {}) => {
+  const allowed = {}
+  for (const key of ['screenSharingEnabled', 'startupMusicEnabled', 'wakeEnabled', 'wakeTrigger', 'doubleClapEnabled']) {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) allowed[key] = updates[key]
+  }
+  const prefs = writeDesktopPreferences(allowed)
+  wakeWord.setConfig({ enabled: prefs.wakeEnabled, trigger: prefs.wakeTrigger, doubleClapEnabled: prefs.doubleClapEnabled })
+  broadcastWakeConfig()
+  return prefs
+})
+
+ipcMain.handle('desktop:open-external', async (_event, rawUrl) => {
+  try {
+    const url = new URL(String(rawUrl || ''))
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP(S) links are allowed')
+    await shell.openExternal(url.toString())
+    return { ok: true }
+  } catch (error) { return { ok: false, error: error?.message || String(error) } }
+})
+
+ipcMain.handle('screen-sharing:get-status', () => ({ enabled: desktopPreferences.screenSharingEnabled === true }))
+ipcMain.handle('screen-sharing:set-enabled', (_event, enabled) => {
+  const prefs = writeDesktopPreferences({ screenSharingEnabled: enabled === true })
+  return { enabled: prefs.screenSharingEnabled }
+})
+ipcMain.handle('screen-sharing:capture', async () => {
+  if (!desktopPreferences.screenSharingEnabled) return { ok: false, error: 'screen_sharing_disabled' }
+  try {
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1080 }, fetchWindowIcons: false })
+    const source = sources[0]
+    if (!source || source.thumbnail.isEmpty()) throw new Error('No display is available')
+    const png = source.thumbnail.toPNG()
+    return { ok: true, name: source.name, filename: `gai-screen-${Date.now()}.png`, mime: 'image/png', dataUrl: `data:image/png;base64,${png.toString('base64')}` }
+  } catch (error) { return { ok: false, error: error?.message || String(error) } }
+})
+
+ipcMain.handle('wake:set-conversation-active', (_event, active) => {
+  wakeConversationActive = active === true
+  return broadcastWakeConfig()
+})
+ipcMain.handle('wake:set-config', (_event, updates = {}) => {
+  const prefs = writeDesktopPreferences({
+    ...(Object.prototype.hasOwnProperty.call(updates, 'enabled') ? { wakeEnabled: updates.enabled === true } : {}),
+    ...(updates.trigger ? { wakeTrigger: updates.trigger } : {}),
+    ...(Object.prototype.hasOwnProperty.call(updates, 'doubleClapEnabled') ? { doubleClapEnabled: updates.doubleClapEnabled === true } : {}),
+  })
+  wakeWord.setConfig({ enabled: prefs.wakeEnabled, trigger: prefs.wakeTrigger, doubleClapEnabled: prefs.doubleClapEnabled })
+  return broadcastWakeConfig()
 })
 
 ipcMain.handle('system-screenshot:get-latest', async (_event, options = {}) => {
@@ -1371,7 +1511,7 @@ ipcMain.handle('updater:check-for-updates', async () => {
   }
   try {
     sendUpdaterStatus({ stage: 'checking' })
-    const result = await autoUpdater.checkForUpdates()
+    const result = await desktopUpdater.checkForUpdates()
     return { ok: true, updateInfo: result?.updateInfo || null }
   } catch (error) {
     const message = error?.message || String(error || 'Update check failed')
@@ -1386,7 +1526,7 @@ ipcMain.handle('updater:start-download', async () => {
     return { ok: false, skipped: true, reason: 'portable' }
   }
   try {
-    await autoUpdater.downloadUpdate()
+    await desktopUpdater.downloadUpdate()
     return { ok: true }
   } catch (error) {
     const message = error?.message || String(error || 'Download failed')
@@ -1400,7 +1540,7 @@ ipcMain.handle('updater:quit-and-install', () => {
     sendUpdaterStatus({ stage: 'portable', portable: true })
     return { ok: false, skipped: true, reason: 'portable' }
   }
-  autoUpdater.quitAndInstall()
+  desktopUpdater.quitAndInstall()
   return { ok: true }
 })
 
@@ -1419,6 +1559,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuiting = true
+  if (IS_MAC && desktopUpdater instanceof CommunityMacUpdater) desktopUpdater.installOnQuit()
 })
 
 app.whenReady().then(async () => {
@@ -1464,17 +1605,21 @@ app.whenReady().then(async () => {
   // 语音唤醒:初始化主进程 KWS 引擎,成功则开启隐藏"耳朵"窗口常驻监听。
   // 失败(如缺模型/原生模块)不影响 app 其余功能 —— initWakeWord 内部已吞错。
   try {
-    const wakeReady = wakeWord.initWakeWord({ codeRoot: CODE_ROOT, logDir: LOG_DIR })
+    wakeWord.setOnStatus(() => broadcastWakeConfig())
+    wakeWord.setOnHit(payload => {
+      devLight.blink()
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('wake:hit', payload)
+    })
+    const wakeReady = wakeWord.initWakeWord({
+      codeRoot: CODE_ROOT,
+      logDir: LOG_DIR,
+      numThreads: Math.max(1, os.cpus().length - 2),
+      wakeConfig: { enabled: desktopPreferences.wakeEnabled, trigger: desktopPreferences.wakeTrigger, doubleClapEnabled: desktopPreferences.doubleClapEnabled },
+    })
+    createWakeProbeWindow()
+    createVoiceOrbWindow()
     if (wakeReady) {
-      // 命中"小白龙"→ ① 开发板灯 0.6s 内闪三次后灭(灯离线则静默忽略);
-      //              ② 通知主窗口渲染层启动唤醒会话(开麦+悬浮球入场+10s 监听,见 voice-wake.js)。
-      wakeWord.setOnHit(() => {
-        devLight.blink()
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('wake:hit')
-      })
-      createWakeProbeWindow()
-      createVoiceOrbWindow() // 预建悬浮球窗(隐藏),首次唤醒即时入场
-      console.log('[main] 语音唤醒已启用,隐藏耳朵窗口已开启')
+      console.log('[main] GAI AI local wake listener enabled')
     } else {
       console.warn('[main] 语音唤醒未启用(引擎初始化失败,见 wake-word.log)')
     }

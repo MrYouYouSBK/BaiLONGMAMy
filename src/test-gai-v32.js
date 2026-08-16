@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
+const packageJson = JSON.parse(read('package.json'))
+const control = read('src/ui/brain-ui/gai-control-center.js')
+const main = read('electron/main.cjs')
+const updater = read('electron/community-updater.cjs')
+const preload = read('electron/preload.cjs')
+const wake = read('src/ui/brain-ui/voice-wake.js')
+const keywords = read('src/voice/kws-model/keywords.txt')
+const swift = read('src/voice/macos-speech.swift')
+const windowsSpeech = read('src/voice/windows-speech.js')
+const startup = read('electron/startup.html')
+const reminders = read('src/api/routes/settings.js')
+const workflow = read('.github/workflows/build-installers.yml')
+
+assert.equal(packageJson.version, '3.2.0')
+assert.match(packageJson.description, /multilingual, local-first/)
+assert.match(control, /GAI AI 3\.2/)
+assert.match(control, /value="multilingual">中文 \+ English \+ Bahasa Melayu/)
+for (const id of ['gai-wake-enabled', 'gai-screen-sharing', 'gai-startup-music', 'gai-attach-screen', 'gai-add-reminder', 'gai-use-local-ai']) {
+  assert.match(control, new RegExp(id))
+}
+assert.match(control, /AccountChooser/)
+assert.match(main, /CommunityMacUpdater/)
+assert.match(main, /desktopUpdater/)
+assert.match(main, /screen-sharing:capture/)
+assert.match(updater, /SHA-256 verification failed/)
+assert.match(main, /GAI_INFERENCE_THREADS/)
+assert.match(preload, /exposeInMainWorld\('gai'/)
+assert.match(preload, /screen-sharing:set-enabled/)
+assert.match(wake, /IDLE_DISMISS_MS = 0/)
+assert.match(keywords, /@GAI_AI/)
+assert.match(swift, /"zh-CN", "en-US", "ms-MY"/)
+assert.match(swift, /rolloverIfDue/)
+assert.match(windowsSpeech, /\['zh-CN', 'en-US', 'ms-MY'\]/)
+assert.match(startup, /gai-startup-chime\.wav/)
+assert.match(reminders, /\/settings\/reminders/)
+assert.match(reminders, /Verify the result before reporting completion/)
+assert.match(workflow, /macos-15-intel/)
+assert.match(workflow, /SHA256SUMS\.txt/)
+assert.equal(fs.existsSync(path.join(root, 'music/gai-startup-chime.wav')), true)
+assert.equal(fs.existsSync(path.join(root, 'music/HedwigsTheme.mp3')), false)
+assert.equal(fs.existsSync(path.join(root, 'images/bailongma-logo.png')), false)
+
+console.log('GAI AI 3.2 feature checks passed')
