@@ -214,7 +214,7 @@ async function streamDoubao({
   const resolvedResourceId = resolveDoubaoResourceId(speaker, resourceId)
   const headers = {
     'X-Api-Resource-Id': resolvedResourceId,
-    'X-Api-Request-Id': `blm_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    'X-Api-Request-Id': `gai_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     'Content-Type': 'application/json',
   }
   headers['X-Api-Key'] = apiKey
@@ -232,7 +232,7 @@ async function streamDoubao({
     method: 'POST',
     headers,
     body: JSON.stringify({
-      user: { uid: 'bailongma' },
+      user: { uid: 'gai-ai' },
       req_params: reqParams,
     }),
   })
@@ -339,7 +339,7 @@ async function streamVolcano({ text, voiceId = 'BV001_streaming', appId, token }
     },
     body: JSON.stringify({
       app: { appid: appId, token, cluster: 'volcano_tts' },
-      user: { uid: 'bailongma' },
+      user: { uid: 'gai-ai' },
       audio: {
         voice_type: voiceId,
         encoding: 'mp3',
@@ -348,7 +348,7 @@ async function streamVolcano({ text, voiceId = 'BV001_streaming', appId, token }
         pitch_ratio: 1.0,
       },
       request: {
-        reqid: `blm_${Date.now()}`,
+        reqid: `gai_${Date.now()}`,
         text,
         text_type: 'plain',
         operation: 'query',

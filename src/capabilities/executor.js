@@ -61,7 +61,7 @@ function inferFileWritePreviewOutcome(result = '') {
 
 function getDesktopWindowLayoutSnapshot() {
   try {
-    const reader = globalThis?.getBailongmaWindowLayoutSnapshot
+    const reader = globalThis?.getGaiWindowLayoutSnapshot || globalThis?.getBailongmaWindowLayoutSnapshot
     return typeof reader === 'function' ? reader() : null
   } catch {
     return null
@@ -1227,7 +1227,7 @@ function execGrantAgentDelegation({ allowed, note = '' }) {
     return toolJson({ ok: false, error: e.message })
   }
   const msg = allowed
-    ? `已记录授权：Bailongma 可以指挥本地 AI 小伙伴工作。`
+    ? `已记录授权：GAI AI 可以指挥本地 AI 小伙伴工作。`
     : `已记录：用户暂不授权 Agent 委托功能。`
   return toolJson({ ok: true, allowed: !!allowed, note: String(note || ''), message: msg })
 }

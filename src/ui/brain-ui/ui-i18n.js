@@ -22,7 +22,7 @@ const EN = new Map(Object.entries({
   '解锁': 'Unlock', '混响': 'Reverb', '混响长度': 'Reverb length', '失真 / 重量': 'Distortion / weight', '金属感': 'Metallic tone',
   '机器人感': 'Robot tone', '合成厚度': 'Chorus depth', '金属共振': 'Metal resonance', '金属音调': 'Metal pitch',
   '机器人音调': 'Robot pitch', '恢复默认': 'Restore defaults', '语速': 'Speech rate', '试听': 'Test voice',
-  '设备设置': 'Device settings', '识别语言': 'Recognition language', '中文 + English（雙語／預設）': 'Chinese + English (bilingual / default)',
+  '设备设置': 'Device settings', '识别语言': 'Recognition language', '中文 + English + Bahasa Melayu（預設）': 'Chinese + English + Malay (default)', '中文 + English + Bahasa Melayu (default)': 'Chinese + English + Malay (default)', '中文 + English': 'Chinese + English',
   '中文（普通话）': 'Chinese (Mandarin)', '麦克风': 'Microphone', '系统默认麦克风': 'System default microphone', '刷新': 'Refresh',
   '输出设备': 'Audio output', '自动（跟随系统，避开虚拟设备）': 'Automatic (follow system, avoid virtual devices)',
   '识别后自动发送': 'Send automatically after recognition', '启动时自动开启麦克风': 'Enable microphone on startup',

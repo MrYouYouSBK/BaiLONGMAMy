@@ -605,7 +605,8 @@ const createSettingsModal = () => `
             <div class="settings-row">
               <label class="settings-label" for="voice-lang-select">识别语言</label>
               <select class="settings-select" id="voice-lang-select">
-                <option value="bilingual">中文 + English（雙語／預設）</option>
+                <option value="multilingual">中文 + English + Bahasa Melayu（預設）</option>
+                <option value="bilingual">中文 + English</option>
                 <option value="en-US">English (US)</option>
                 <option value="zh-CN">中文（普通话）</option>
               </select>

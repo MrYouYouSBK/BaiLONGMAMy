@@ -68,7 +68,7 @@ import { scheduleSceneSurfaceRemoval } from './scene/transient-surfaces.js'
 
 function reportStartupProgress(id, status, detail, message) {
   try {
-    const reporter = globalThis.bailongmaStartupProgress
+    const reporter = globalThis.gaiStartupProgress || globalThis.bailongmaStartupProgress
     if (typeof reporter === 'function') reporter({ id, status, detail, message })
   } catch {}
 }
@@ -762,6 +762,11 @@ function enqueueDueReminders() {
       reminderTargetId: reminder.user_id,
       reminderId: reminder.id,
     })
+    try {
+      globalThis.gaiDesktopNotificationBridge?.show({ title: 'GAI AI Reminder', body: reminder.task })
+    } catch (error) {
+      console.warn(`[reminder #${reminder.id}] desktop notification failed:`, error?.message || error)
+    }
     emitEvent('reminder_fired', {
       id: reminder.id,
       user_id: reminder.user_id,
@@ -1741,7 +1746,7 @@ async function main() {
   }
 
   // Start HTTP API — must start regardless of activation status; the activation page depends on it
-  const apiPort = Number(process.env.BAILONGMA_PORT) || 3721
+  const apiPort = Number(process.env.GAI_PORT || process.env.BAILONGMA_PORT) || 3721
   reportStartupProgress('api', 'running', `准备监听 127.0.0.1:${apiPort}`, '正在启动本地 API')
   startAPI(apiPort, {
     getStateSnapshot: () => ({

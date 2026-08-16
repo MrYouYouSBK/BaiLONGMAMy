@@ -1,88 +1,110 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8" />
-<title>GAI AI Voice Wake</title>
-</head>
+<html lang="en">
+<head><meta charset="utf-8"><title>GAI AI Local Wake Listener</title></head>
 <body>
-<!-- 这是一个隐藏的"耳朵"窗口:常开麦克风,把 16kHz Float32 PCM 送主进程做唤醒词检测。
-     第一步只做检测+写日志,无任何可见 UI / 无其他动作。 -->
 <script>
-(async () => {
-  const CHUNK = 1600;        // 0.1s @16k
-  const TARGET_SR = 16000;
+(() => {
+  const TARGET_RATE = 16000;
+  const CHUNK = 1600;
+  let config = { enabled: true, conversationActive: false };
+  let stream = null;
+  let context = null;
+  let node = null;
+  let restartTimer = null;
+  let generation = 0;
 
-  function report(status, detail) {
-    try { window.wakeProbe?.reportStatus(status, detail); } catch {}
+  const report = (status, detail = '') => window.wakeProbe?.reportStatus(status, detail);
+  const shouldListen = () => config.enabled !== false && config.conversationActive !== true;
+
+  async function stop(reason = 'paused') {
+    generation += 1;
+    if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+    try { node?.disconnect(); } catch {}
+    try { stream?.getTracks().forEach(track => track.stop()); } catch {}
+    try { await context?.close(); } catch {}
+    node = null; stream = null; context = null;
+    report(reason);
   }
 
-  // AudioWorklet 源码:累积到 CHUNK 个样本就把 Float32 拷一份投递到主线程。
-  const WORKLET_SRC = `
-    class WakeCapture extends AudioWorkletProcessor {
-      constructor(opt){ super(); this._size = (opt&&opt.processorOptions&&opt.processorOptions.chunk)||1600; this._buf=new Float32Array(this._size); this._n=0; }
-      process(inputs){
-        const ch = inputs[0] && inputs[0][0];
-        if (ch) {
-          for (let i=0;i<ch.length;i++){
-            this._buf[this._n++] = ch[i];
-            if (this._n >= this._size){
-              const out = this._buf.slice(0, this._n);   // 拷贝,避免视图/复用问题
-              this.port.postMessage(out, [out.buffer]);
-              this._n = 0;
-            }
-          }
-        }
-        return true;
-      }
-    }
-    registerProcessor('wake-capture', WakeCapture);
-  `;
+  function retry(message) {
+    report('recovering', message);
+    if (!shouldListen() || restartTimer) return;
+    restartTimer = setTimeout(() => { restartTimer = null; start(); }, 1500);
+  }
 
   async function start() {
-    let stream;
+    if (!shouldListen() || stream) return;
+    const current = ++generation;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        // KWS 要原始音频:降噪/回声消除/自动增益都关掉,它们会扭曲语音、害识别
-        // (模型在干净音频上训练,样本能 100% 命中正因为干净)。
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
-      });
-    } catch (e) {
-      report('mic-denied', e?.name || String(e));
-      // 麦克风未就绪,稍后重试(权限/设备可能晚到)
-      setTimeout(start, 3000);
-      return;
-    }
-
-    try {
-      const actx = new AudioContext({ sampleRate: TARGET_SR });
-      if (actx.state === 'suspended') { try { await actx.resume(); } catch {} }
-      const src = actx.createMediaStreamSource(stream);
-
-      const blob = new Blob([WORKLET_SRC], { type: 'application/javascript' });
-      const url = URL.createObjectURL(blob);
-      await actx.audioWorklet.addModule(url);
-
-      const node = new AudioWorkletNode(actx, 'wake-capture', {
-        numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1,
-        processorOptions: { chunk: CHUNK },
-      });
-      node.port.onmessage = (ev) => {
-        // ev.data 是 Float32Array;把其底层 buffer 送主进程
-        const f32 = ev.data;
-        window.wakeProbe?.sendPcm(f32.buffer);
-      };
-      src.connect(node);
-      node.connect(actx.destination); // 拉动音频图(输出静音)
-
-      report('running', 'sr=' + actx.sampleRate);
-      console.log('[wake-probe] 耳朵已开,采样率', actx.sampleRate);
-    } catch (e) {
-      report('error', e?.message || String(e));
-      console.error('[wake-probe] 启动失败', e);
+      stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1,
+      }, video: false });
+      if (current !== generation || !shouldListen()) { stream.getTracks().forEach(track => track.stop()); stream = null; return; }
+      context = new AudioContext();
+      if (context.state === 'suspended') await context.resume();
+      const sourceRate = context.sampleRate;
+      const source = context.createMediaStreamSource(stream);
+      const worklet = `
+        class GaiWakeResampler extends AudioWorkletProcessor {
+          constructor(options) {
+            super();
+            this.target = 16000;
+            this.source = sampleRate;
+            this.step = this.source / this.target;
+            this.position = 0;
+            this.input = [];
+            this.output = new Float32Array(${CHUNK});
+            this.count = 0;
+          }
+          process(inputs) {
+            const channel = inputs[0] && inputs[0][0];
+            if (!channel) return true;
+            for (let i = 0; i < channel.length; i++) this.input.push(channel[i]);
+            while (this.position + 1 < this.input.length) {
+              const left = Math.floor(this.position);
+              const fraction = this.position - left;
+              this.output[this.count++] = this.input[left] * (1 - fraction) + this.input[left + 1] * fraction;
+              this.position += this.step;
+              if (this.count >= this.output.length) {
+                const chunk = this.output.slice();
+                this.port.postMessage(chunk, [chunk.buffer]);
+                this.count = 0;
+              }
+            }
+            const consumed = Math.floor(this.position);
+            if (consumed > 0) { this.input.splice(0, consumed); this.position -= consumed; }
+            return true;
+          }
+        }
+        registerProcessor('gai-wake-resampler', GaiWakeResampler);
+      `;
+      const url = URL.createObjectURL(new Blob([worklet], { type: 'application/javascript' }));
+      await context.audioWorklet.addModule(url);
+      URL.revokeObjectURL(url);
+      node = new AudioWorkletNode(context, 'gai-wake-resampler', { numberOfInputs: 1, numberOfOutputs: 1 });
+      node.port.onmessage = event => window.wakeProbe?.sendPcm(event.data.buffer);
+      const silent = context.createGain(); silent.gain.value = 0;
+      source.connect(node); node.connect(silent); silent.connect(context.destination);
+      stream.getAudioTracks().forEach(track => track.addEventListener('ended', () => { stop('device-ended').then(() => retry('microphone ended')); }, { once: true }));
+      context.addEventListener('statechange', () => { if (context?.state === 'closed' && shouldListen()) retry('audio context closed'); });
+      report('running', `source=${sourceRate} target=${TARGET_RATE}`);
+    } catch (error) {
+      await stop('error');
+      retry(error?.message || String(error));
     }
   }
 
-  start();
+  async function apply(next) {
+    config = { ...config, ...(next || {}) };
+    if (shouldListen()) await start(); else await stop(config.enabled === false ? 'disabled' : 'conversation-active');
+  }
+
+  window.wakeProbe?.onConfig(apply);
+  window.wakeProbe?.getConfig().then(apply).catch(() => apply(config));
+  setInterval(() => {
+    if (shouldListen() && (!stream || !stream.active || context?.state === 'closed')) retry('health check restart');
+    else if (stream) report('heartbeat', context?.state || 'unknown');
+  }, 15000);
 })();
 </script>
 </body>

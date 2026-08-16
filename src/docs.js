@@ -4,8 +4,16 @@ import { DOC_TOPICS as VOICE_TOPICS, detectDocTopic as detectVoiceTopic } from '
 import { CONFIG_TOPICS } from './docs/config-faq.js'
 import { SELF_KNOWLEDGE_TOPICS, detectSelfKnowledgeTopic } from './docs/self-knowledge.js'
 
-// 合并所有文档主题
-const DOC_TOPICS = { ...VOICE_TOPICS, ...CONFIG_TOPICS, ...SELF_KNOWLEDGE_TOPICS }
+function rebrandDocValue(value) {
+  if (typeof value === 'string') return value.replace(/白龙马|白龍馬|BaiLongma|Bailongma/gi, 'GAI AI')
+  if (Array.isArray(value)) return value.map(rebrandDocValue)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rebrandDocValue(item)]))
+  return value
+}
+
+// Preserve legacy source knowledge for upgrade compatibility while ensuring
+// every document, API response and injected context uses the GAI AI identity.
+const DOC_TOPICS = rebrandDocValue({ ...VOICE_TOPICS, ...CONFIG_TOPICS, ...SELF_KNOWLEDGE_TOPICS })
 
 function formatDocAsContext(topicId) {
   const doc = DOC_TOPICS[topicId]
@@ -28,10 +36,13 @@ function formatDocAsContext(topicId) {
 // 根据用户消息检测应打开的文档主题（意图识别，无需穷举关键词）
 function detectDocTopic(text) {
   if (!text) return null
-  const selfTopic = detectSelfKnowledgeTopic(text)
+  if (/GAI\s*AI.{0,12}(界面|UI|面板|视觉|設計|设计)/i.test(text)) return 'ui_design'
+  if (/GAI\s*AI.{0,12}(架构|架構|代码|代碼|怎么运行|如何运行|内部机制|運作)/i.test(text)) return 'self_architecture'
+  const detectionText = String(text).replace(/GAI\s*AI/gi, '白龙马')
+  const selfTopic = detectSelfKnowledgeTopic(detectionText)
   if (selfTopic) return selfTopic
 
-  const voiceTopic = detectVoiceTopic(text)
+  const voiceTopic = detectVoiceTopic(detectionText)
   if (voiceTopic) return voiceTopic
 
   const t = text.toLowerCase()
@@ -105,7 +116,7 @@ export function buildDocPanelStateContext(detectedTopic = null) {
     `open_doc_panel tool rules. Follow strictly:`,
     `- Do not proactively ask the user for API keys. If the user provides a key, help configure it directly and mention that they can test it.`,
     `- Highest priority: when the user explicitly asks to open or view docs, immediately call open_doc_panel(action: "open", topic: "${state.topicId || 'voice_config'}"). No extra condition is required and you must not refuse.`,
-    `- When the user needs voice, model, WeChat, or social-platform configuration help, choose the matching topic and open the panel: voice_asr, voice_tts, voice_config, model_config, or wechat_config. When the user asks about how BaiLongma works, its code architecture, or its internal mechanisms, open self_architecture. When the user asks about BaiLongma's interface, panels, or Scene/visual design, open ui_design.`,
+    `- When the user needs voice, model, WeChat, or social-platform configuration help, choose the matching topic and open the panel: voice_asr, voice_tts, voice_config, model_config, or wechat_config. When the user asks about how GAI AI works, its code architecture, or its internal mechanisms, open self_architecture. When the user asks about GAI AI's interface, panels, or Scene/visual design, open ui_design.`,
     `- If the document panel is open but the current turn is unrelated to any configuration topic, immediately call open_doc_panel(topic: "${state.topicId || 'voice_config'}", action: "close") to close it.`,
   ]
 

@@ -1,8 +1,8 @@
 {
   "name": "gai-ai",
   "productName": "GAI AI",
-  "version": "3.1.0",
-  "description": "A bilingual, offline-first personal AI for Windows and macOS",
+  "version": "3.2.0",
+  "description": "A multilingual, local-first personal AI for Apple Silicon, Windows and macOS",
   "type": "module",
   "main": "electron/main.cjs",
   "author": {
@@ -52,6 +52,9 @@
     "test:db-schema-module": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:ELECTRON_RUN_AS_NODE='1'; .\\node_modules\\.bin\\electron.cmd .\\src\\test-db-schema-module.js\"",
     "test:voice-continuous": "node ./src/test-voice-continuous.js",
     "test:gai-v31": "node ./src/test-gai-v31.js",
+    "test:gai-v32": "node ./src/test-gai-v32.js",
+    "test:local-ai": "node ./src/test-local-ai-discovery.js",
+    "test:community-updater": "node ./src/test-community-updater.js",
     "test:websocket-security": "node ./src/test-websocket-security.js",
     "repair:memories:dry": "electron ./scripts/repair-memory-quality.js",
     "repair:memories": "electron ./scripts/repair-memory-quality.js --apply",
@@ -176,7 +179,7 @@
       "category": "public.app-category.productivity",
       "artifactName": "GAI-AI-${version}-mac-${arch}.${ext}",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "GAI AI uses the microphone only when you enable voice input.",
+        "NSMicrophoneUsageDescription": "GAI AI uses the microphone for voice input and the wake listener you control in Settings.",
         "NSSpeechRecognitionUsageDescription": "GAI AI uses system speech recognition when you select native voice input.",
         "NSCameraUsageDescription": "GAI AI uses the camera only when you open the camera panel or attach a live image."
       }

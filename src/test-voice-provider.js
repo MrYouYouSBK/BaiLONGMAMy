@@ -29,7 +29,7 @@ try {
   assert.equal(normalizeVoiceProvider('macos-local'), 'local', 'legacy macos-local alias maps to local ASR')
   assert.equal(normalizeVoiceProvider('doubao'), 'volcengine', 'doubao alias maps to volcengine ASR')
   assert.equal(normalizeVoiceProvider('iflytek'), 'xunfei', 'iflytek alias maps to xunfei ASR')
-  assert.equal(normalizeVoiceProvider('unknown-provider'), 'aliyun', 'unknown ASR provider falls back to aliyun')
+  assert.equal(normalizeVoiceProvider('unknown-provider'), 'local', 'unknown ASR provider falls back to free local recognition')
 
   assert.equal(getVoiceConfig().voiceProvider, 'local', 'legacy voice.provider is used when voiceProvider is absent')
   assert.equal(JSON.parse(fs.readFileSync(configFile, 'utf-8')).voice, undefined, 'legacy voice block is removed from config.json')

@@ -52,7 +52,7 @@ try {
   assert.match(video, /geminiPollLoop/)
   assert.match(video, /inlineData/)
   assert.doesNotMatch(video, /generateAudio: true/)
-  assert.match(asr, /\['zh', 'en'\]/)
+  assert.match(asr, /\['zh', 'en', 'ms'\]/)
   const untranslated = [...createBrainUiMarkup().matchAll(/>([^<>]+)</g)]
     .map(match => match[1].trim())
     .filter(text => /[\u3400-\u9fff]/.test(text) && !translateStaticUiText(text, 'en'))

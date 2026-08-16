@@ -14,12 +14,12 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(__dirname, '..')
 
-const USER_DIR = process.env.BAILONGMA_USER_DIR
-  ? path.resolve(process.env.BAILONGMA_USER_DIR)
+const USER_DIR = process.env.GAI_USER_DIR || process.env.BAILONGMA_USER_DIR
+  ? path.resolve(process.env.GAI_USER_DIR || process.env.BAILONGMA_USER_DIR)
   : REPO_ROOT
 
-const RESOURCES_DIR = process.env.BAILONGMA_RESOURCES_DIR
-  ? path.resolve(process.env.BAILONGMA_RESOURCES_DIR)
+const RESOURCES_DIR = process.env.GAI_RESOURCES_DIR || process.env.BAILONGMA_RESOURCES_DIR
+  ? path.resolve(process.env.GAI_RESOURCES_DIR || process.env.BAILONGMA_RESOURCES_DIR)
   : REPO_ROOT
 
 function ensureDir(dir) {
@@ -144,15 +144,15 @@ export function rescueDataFromInstallDir() {
   // If an old installer recorded a shared parent folder as InstallLocation
   // (for example AppData\Local\Programs or D:\Software), scanning and moving
   // "unknown" directories would touch other applications. Only rescue from a
-  // dedicated Bailongma install folder.
-  if (path.basename(installDir).toLowerCase() !== 'bailongma') {
+  // dedicated GAI AI folder (including the legacy upgrade name).
+  if (!['gai ai', 'bailongma'].includes(path.basename(installDir).toLowerCase())) {
     console.warn(`[paths] skip install-dir rescue from unsafe shared folder: ${installDir}`)
     return rescued
   }
 
   // sandbox 必须在安装目录之外，否则迁过去等于没迁
   if (isPathInside(installDir, paths.sandboxDir)) {
-    console.warn('[paths] 警告：sandbox 目录位于安装目录内，更新时会被清空，请检查 BAILONGMA_USER_DIR 配置')
+    console.warn('[paths] 警告：sandbox 目录位于安装目录内，更新时会被清空，请检查 GAI_USER_DIR 配置')
     return rescued
   }
   if (!isInstallDirSafeToScan(installDir)) return rescued
@@ -208,6 +208,7 @@ export function seedMusicOnce() {
   try {
     for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
       if (!entry.isFile()) continue
+      if (entry.name === 'gai-startup-chime.wav') continue
       const dstPath = path.join(dstDir, entry.name)
       if (fs.existsSync(dstPath)) continue
       fs.copyFileSync(path.join(srcDir, entry.name), dstPath)

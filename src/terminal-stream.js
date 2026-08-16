@@ -81,7 +81,7 @@ export function getTerminalStreamSnapshot(streamId = 'default') {
 
 function readDesktopLayoutSnapshot() {
   try {
-    const reader = globalThis?.getBailongmaWindowLayoutSnapshot
+    const reader = globalThis?.getGaiWindowLayoutSnapshot || globalThis?.getBailongmaWindowLayoutSnapshot
     return typeof reader === 'function' ? reader() : null
   } catch {
     return null

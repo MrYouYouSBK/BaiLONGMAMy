@@ -34,7 +34,9 @@ function createAliyunSession(apiKey, lang, onTranscript, onError, onClose, onEve
   })
 
   ws.on('open', () => {
-    const languageHints = lang === 'bilingual' ? ['zh', 'en'] : [(lang === 'zh' || /^zh-/i.test(lang) || !lang) ? 'zh' : 'en']
+    const languageHints = ['bilingual', 'multilingual'].includes(lang)
+      ? ['zh', 'en', 'ms']
+      : [(lang === 'zh' || /^zh-/i.test(lang) || !lang) ? 'zh' : (/^ms/i.test(lang) ? 'ms' : 'en')]
     ws.send(JSON.stringify({
       header: { action: 'run-task', task_id: taskId, streaming: 'duplex' },
       payload: {
@@ -127,7 +129,7 @@ function createTencentSession(secretId, secretKey, appId, lang, onTranscript, on
     timestamp: ts,
     expired: ts + 86400,
     nonce,
-    engine_model_type: lang === 'bilingual' ? '16k_zh_en' : (/^zh/i.test(lang) ? '16k_zh' : '16k_en'),
+    engine_model_type: ['bilingual', 'multilingual'].includes(lang) ? '16k_zh_en' : (/^zh/i.test(lang) ? '16k_zh' : '16k_en'),
     voice_format: 1,
     needvad: 1,
   }
@@ -287,7 +289,7 @@ function makeVolcFrame(messageType, flags, serialization, payload) {
 
 function makeVolcFullClientRequest() {
   const payload = Buffer.from(JSON.stringify({
-    user: { uid: 'bailongma' },
+    user: { uid: 'gai-ai' },
     audio: {
       format: 'pcm',
       codec: 'raw',

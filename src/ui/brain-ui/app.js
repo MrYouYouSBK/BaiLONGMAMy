@@ -91,7 +91,7 @@ function applyUiZoom(factor, { persist = true } = {}) {
   const nextZoom = clampZoomFactor(factor);
   currentUiZoom = nextZoom;
 
-  const bridge = window.bailongma;
+  const bridge = window.gai || window.bailongma;
   if (bridge?.isElectron && typeof bridge.setZoomFactor === "function") {
     bridge.setZoomFactor(nextZoom);
   } else {
@@ -107,7 +107,7 @@ function stepUiZoom(delta) {
 }
 
 function initUiZoom() {
-  const bridge = window.bailongma;
+  const bridge = window.gai || window.bailongma;
   const initialZoom = loadSavedUiZoom();
 
   if (!bridge?.isElectron) {
@@ -3249,7 +3249,7 @@ function initTTSSettings() {
   async function loadVoiceSettings() {
     const langSelect = document.getElementById("voice-lang-select");
     const autoSend   = document.getElementById("voice-auto-send");
-    if (langSelect) langSelect.value = localStorage.getItem(VOICE_LANG_KEY) || "bilingual";
+    if (langSelect) langSelect.value = localStorage.getItem(VOICE_LANG_KEY) || "multilingual";
     if (autoSend) autoSend.checked = localStorage.getItem(VOICE_AUTO_SEND_KEY) !== "false";
     const autoMic = document.getElementById("voice-auto-mic");
     if (autoMic) autoMic.checked = localStorage.getItem(VOICE_AUTO_MIC_KEY) === "true";
@@ -3283,7 +3283,7 @@ function initTTSSettings() {
 
   if (saveVoiceBtn) {
     saveVoiceBtn.addEventListener("click", async () => {
-      const lang      = document.getElementById("voice-lang-select")?.value || "bilingual";
+      const lang      = document.getElementById("voice-lang-select")?.value || "multilingual";
       const autoSend  = document.getElementById("voice-auto-send")?.checked ?? true;
       const autoMic   = document.getElementById("voice-auto-mic")?.checked ?? false;
       const threshold = parseFloat(voiceThreshSlider?.value ?? "0.008");
@@ -3664,7 +3664,7 @@ function initTTSSettings() {
 
   async function loadUpdateSettings() {
     syncUpdateSettings();
-    const bridge = window.bailongma;
+    const bridge = window.gai || window.bailongma;
     if (!bridge?.isElectron) {
       if (settingsCurrentVersion) settingsCurrentVersion.textContent = "仅桌面端可用";
       if (settingsCheckUpdateBtn) settingsCheckUpdateBtn.disabled = true;
@@ -3736,7 +3736,7 @@ function initTTSSettings() {
   });
 
   settingsCheckUpdateBtn?.addEventListener("click", async () => {
-    const bridge = window.bailongma;
+    const bridge = window.gai || window.bailongma;
     if (!bridge?.isElectron) return;
     setUpdateStatusText("正在检查更新…", "checking");
     setUpdateFeedback("");
@@ -3754,7 +3754,7 @@ function initTTSSettings() {
   });
 
   settingsDownloadUpdateBtn?.addEventListener("click", async () => {
-    const bridge = window.bailongma;
+    const bridge = window.gai || window.bailongma;
     if (!bridge?.isElectron) return;
     setUpdateStatusText("开始下载…", "downloading");
     showUpdateButtons({ check: false });
@@ -3767,7 +3767,7 @@ function initTTSSettings() {
   });
 
   settingsInstallUpdateBtn?.addEventListener("click", () => {
-    window.bailongma?.quitAndInstall?.();
+    (window.gai || window.bailongma)?.quitAndInstall?.();
   });
 
   settingsIgnoreUpdateBtn?.addEventListener("click", () => {
@@ -3792,7 +3792,7 @@ initVoicePanel({
   getChatInput:  () => document.getElementById("msg-input"),
   getSendBtn:    () => document.getElementById("send-btn"),
   getSendMessage: (options) => chat?.send?.(options),
-  getLang:       () => localStorage.getItem("bailongma-voice-lang") || "bilingual",
+  getLang:       () => localStorage.getItem("bailongma-voice-lang") || "multilingual",
   getAutoSend:   () => localStorage.getItem("bailongma-voice-auto-send") !== "false",
   getAutoMic:    () => localStorage.getItem("bailongma-voice-auto-mic") === "true",
 });

@@ -1818,7 +1818,7 @@ body {
 .settings-tab { display: none; }
 .settings-tab.active { display: block; }
 
-/* GAI AI bilingual control center */
+/* GAI AI multilingual desktop control center */
 .gai-control-hero {
   display: flex;
   justify-content: space-between;
@@ -1879,6 +1879,15 @@ body {
 .gai-links a:hover { text-decoration: underline; }
 .gai-inline-feedback { min-height: 14px; margin-top: 8px; color: var(--ok); font: 9px/1.45 "JetBrains Mono", ui-monospace, monospace; word-break: break-word; }
 .gai-inline-feedback.error { color: var(--warm); }
+.gai-card hr { margin: 13px 0 8px; border: 0; border-top: 1px solid var(--line); }
+.gai-card label.gai-switch-row { grid-template-columns: minmax(0, 1fr) auto; }
+.gai-card label.gai-switch-row input[type="checkbox"] {
+  width: 36px; min-width: 36px; height: 19px; justify-self: end; accent-color: var(--cool); cursor: pointer;
+}
+.gai-card button:disabled { opacity: .42; cursor: not-allowed; }
+#gai-reminder-list { margin-top: 10px; }
+#gai-reminder-list .gai-history-item { display: inline-flex; align-items: center; gap: 7px; cursor: default; }
+#gai-reminder-list .gai-history-item button { border: 0; background: transparent; color: var(--warm); cursor: pointer; font-size: 15px; line-height: 1; }
 
 @media (max-width: 760px) {
   .gai-control-grid { grid-template-columns: 1fr; }
@@ -3958,7 +3967,7 @@ body.person-card-mode .person-card-panel,
   align-items: center;
 }
 
-/* Tab 分组分隔线（配置 | 关于白龙马） */
+/* Tab 分组分隔线（配置 | 关于 GAI AI） */
 .dp-tab-divider {
   width: 1px;
   height: 14px;

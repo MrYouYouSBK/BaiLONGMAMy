@@ -26,9 +26,9 @@ function resolveMacSpeechBinary() {
   return null
 }
 
-function normalizeLang(lang = 'zh-CN') {
-  const value = String(lang || 'zh-CN').trim()
-  if (value === 'bilingual') return 'zh-CN'
+function normalizeLang(lang = 'multilingual') {
+  const value = String(lang || 'multilingual').trim()
+  if (value === 'bilingual' || value === 'multilingual' || value === 'ms' || value === 'ms-MY') return value === 'ms' ? 'ms-MY' : value
   if (/^en/i.test(value)) return 'en-US'
   if (/^zh/i.test(value)) return 'zh-CN'
   return value
@@ -69,6 +69,8 @@ export function createMacSpeechSession(config = {}, onTranscript, onError, onClo
           onTranscript(msg.text, !!msg.is_final)
         } else if (msg.type === 'error') {
           onError(msg.message || 'macOS 本地语音识别错误')
+        } else if (msg.type === 'warning') {
+          console.warn(`[Voice:macOS] ${msg.message || 'recognizer warning'}`)
         }
       } catch {
         console.log(`[Voice:macOS] ${line}`)
