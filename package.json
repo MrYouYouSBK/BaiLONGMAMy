@@ -56,6 +56,7 @@
     "test:gai-v32": "node ./src/test-gai-v32.js",
     "test:local-ai": "node ./src/test-local-ai-discovery.js",
     "test:community-updater": "node ./src/test-community-updater.js",
+    "test:startup-task-briefing": "node ./src/test-startup-task-briefing.js",
     "test:websocket-security": "node ./src/test-websocket-security.js",
     "repair:memories:dry": "electron ./scripts/repair-memory-quality.js",
     "repair:memories": "electron ./scripts/repair-memory-quality.js --apply",

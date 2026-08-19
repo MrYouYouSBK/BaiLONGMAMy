@@ -18,7 +18,7 @@ import { startConsolidationLoop } from './memory/consolidation-loop.js'
 import { recordSelfEvolutionFromMemories } from './memory/self-evolution.js'
 import { runRuntimeInjector } from './context/runtime-injector.js'
 import { selectContextSections } from './context/section-gate.js'
-import { getDB, getConfig, setConfig, getKnownEntities, getOrInitBirthTime, insertConversation, insertMemory, getRecentConversationPartners, getDueReminders, markReminderFired, advanceReminderDueAt, getNextPendingReminder, getMemoryCount, getRecentConversationTimeline, loadFocusStack, loadThreadState, saveThreadState, setCurrentFocusTopic, setCurrentThreadId, updateUserMessageFocusTopic, reassignConversationsThread, insertActionLog } from './db.js'
+import { getDB, getConfig, setConfig, getKnownEntities, getOrInitBirthTime, insertConversation, insertMemory, getRecentConversationPartners, getDueReminders, markReminderFired, advanceReminderDueAt, getNextPendingReminder, listPendingReminders, getMemoryCount, getRecentConversationTimeline, loadFocusStack, loadThreadState, saveThreadState, setCurrentFocusTopic, setCurrentThreadId, updateUserMessageFocusTopic, reassignConversationsThread, insertActionLog } from './db.js'
 import { calculateNextDueAt, autoSpeakForVoiceReply, detectOpenFollowupQuestion } from './capabilities/executor.js'
 import { autoStartManagedMlx } from './local-mlx-manager.js'
 import { pushMessage } from './inbound-message.js'
@@ -66,6 +66,7 @@ import { formatTerminalStreamContext } from './terminal-stream.js'
 import { getWeatherCardProps, isWeatherQuery } from './weather.js'
 import { startTyphoonAlertMonitor } from './typhoon-alert-monitor.js'
 import { scheduleSceneSurfaceRemoval } from './scene/transient-surfaces.js'
+import { buildStartupTaskBriefing, formatStartupTaskNotification } from './ui/brain-ui/startup-task-briefing.js'
 
 function reportStartupProgress(id, status, detail, message) {
   try {
@@ -729,7 +730,7 @@ function clearExecution(controller) {
   if (currentExecution && currentAbortController === null) currentExecution = null
 }
 
-function enqueueDueReminders() {
+function enqueueDueReminders({ showDesktopNotifications = true } = {}) {
   const now = new Date().toISOString()
   const dueReminders = getDueReminders(now, 20)
   for (const reminder of dueReminders) {
@@ -755,10 +756,12 @@ function enqueueDueReminders() {
       reminderTargetId: reminder.user_id,
       reminderId: reminder.id,
     })
-    try {
-      globalThis.gaiDesktopNotificationBridge?.show({ title: 'GAI AI Reminder', body: reminder.task })
-    } catch (error) {
-      console.warn(`[reminder #${reminder.id}] desktop notification failed:`, error?.message || error)
+    if (showDesktopNotifications) {
+      try {
+        globalThis.gaiDesktopNotificationBridge?.show({ title: 'GAI AI Reminder', body: reminder.task })
+      } catch (error) {
+        console.warn(`[reminder #${reminder.id}] desktop notification failed:`, error?.message || error)
+      }
     }
     emitEvent('reminder_fired', {
       id: reminder.id,
@@ -775,18 +778,43 @@ function enqueueDueReminders() {
 // reminders so it can wake exactly at the next due time; this independent
 // scheduler is the reliable offline fallback (the database updates above make
 // concurrent checks idempotent).
-function startLocalReminderScheduler() {
+function startLocalReminderScheduler({ suppressInitialNotifications = false } = {}) {
+  let initialCheck = true
   const check = () => {
     try {
-      enqueueDueReminders()
+      enqueueDueReminders({ showDesktopNotifications: !(initialCheck && suppressInitialNotifications) })
     } catch (error) {
       console.warn('[reminders] local scheduler check failed:', error?.message || error)
+    } finally {
+      initialCheck = false
     }
   }
   check()
   const timer = setInterval(check, 15_000)
   timer.unref?.()
   return timer
+}
+
+function publishStartupTaskBriefing() {
+  const briefing = buildStartupTaskBriefing({
+    activeTask: state.task,
+    taskSteps: state.taskSteps,
+    reminders: listPendingReminders(100),
+  })
+  setStickyEvent('startup_task_briefing', briefing)
+  const notificationBody = formatStartupTaskNotification(briefing)
+  if (notificationBody) {
+    try {
+      globalThis.gaiDesktopNotificationBridge?.show({
+        title: 'GAI AI · Task Reminder / 任務提醒',
+        body: notificationBody,
+      })
+    } catch (error) {
+      console.warn('[reminders] startup task notification failed:', error?.message || error)
+    }
+  }
+  console.log(`[reminders] startup briefing ready: ${briefing.totalItems} pending, ${briefing.overdueCount} overdue`)
+  return briefing
 }
 
 // Common LLM failure handler: set rate-limit on 429, requeue message, drop after max retries
@@ -1781,7 +1809,8 @@ async function main() {
       startConsciousnessLoop({ runImmediateTick: runtimePolicy.runImmediateStartupTick }).catch(err => console.error('[system] Main loop failed to start:', err))
     },
   })
-  startLocalReminderScheduler()
+  const startupTaskBriefing = publishStartupTaskBriefing()
+  startLocalReminderScheduler({ suppressInitialNotifications: startupTaskBriefing.hasItems })
   // 仅在配置了正式预警 API 与目标地区时启用；避免把普通路径数据当作安全预警。
   startTyphoonAlertMonitor()
   reportStartupProgress('api', 'running', `等待 127.0.0.1:${apiPort} 就绪`, '正在等待本地 API 就绪')
