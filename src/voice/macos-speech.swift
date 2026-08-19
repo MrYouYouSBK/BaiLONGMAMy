@@ -223,6 +223,15 @@ final class RolloverProbeClock: @unchecked Sendable {
 }
 
 let inputNode = audioEngine.inputNode
+var voiceProcessingEnabled = false
+if #available(macOS 10.15, *) {
+  do {
+    try inputNode.setVoiceProcessingEnabled(true)
+    voiceProcessingEnabled = true
+  } catch {
+    emit(SpeechEvent(type: "warning", text: nil, is_final: nil, message: "Apple voice processing unavailable; continuing with raw microphone input: \(error.localizedDescription)", language: nil))
+  }
+}
 let format = inputNode.outputFormat(forBus: 0)
 let rolloverProbeClock = RolloverProbeClock()
 inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
@@ -238,5 +247,12 @@ do { audioEngine.prepare(); try audioEngine.start() }
 catch { for context in contexts { context.stop() }; fail("failed to start microphone capture: \(error.localizedDescription)") }
 
 let localeSummary = contexts.map { "\($0.localeId):\($0.modeLabel)" }.joined(separator: ",")
-emit(SpeechEvent(type: "ready", text: nil, is_final: nil, message: "macOS multilingual speech ready [\(localeSummary)]", language: nil))
+let configurationObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: audioEngine, queue: nil) { _ in
+  emit(SpeechEvent(type: "warning", text: nil, is_final: nil, message: "audio device configuration changed; restarting recognition", language: nil))
+  for context in contexts { context.stop() }
+  audioEngine.stop()
+  exit(75)
+}
+_ = configurationObserver
+emit(SpeechEvent(type: "ready", text: nil, is_final: nil, message: "macOS multilingual speech ready [\(localeSummary)] voice-processing=\(voiceProcessingEnabled)", language: nil))
 RunLoop.main.run()

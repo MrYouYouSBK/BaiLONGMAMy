@@ -1123,6 +1123,19 @@ if (
   writeActiveLlmProvider(OFFLINE_PROVIDER)
 }
 
+// The installed desktop app is local/overseas-only.  Preserve legacy provider
+// files so no credentials are destroyed, but never resume a mainland-cloud LLM
+// automatically after upgrading.  CLI/server deployments keep their explicit
+// provider choice for backwards compatibility.
+const DESKTOP_LOCAL_FIRST_PROVIDERS = new Set([OFFLINE_PROVIDER, CODEX_PROVIDER, OPENAI_PROVIDER, 'custom'])
+if (process.versions?.electron && !config.needsActivation && !DESKTOP_LOCAL_FIRST_PROVIDERS.has(config.provider)) {
+  console.warn(`[config] desktop local-first policy replaced legacy provider "${config.provider}" with GAI Offline Super`)
+  const model = normalizeModel(null, OFFLINE_PROVIDER)
+  applyConfig(OFFLINE_PROVIDER, 'offline', model)
+  persistLlmProviderConfig({ provider: OFFLINE_PROVIDER, model, activatedAt: new Date().toISOString() })
+  writeActiveLlmProvider(OFFLINE_PROVIDER)
+}
+
 // At startup, copy social credentials from the config file into process.env so connectors can read them
 ;(function loadSocialEnv() {
   try {
@@ -1790,12 +1803,17 @@ const TTS_CONFIG_KEYS = [
   'elevenLabsKey',
   'volcanoAppId', 'volcanoToken',
 ]
+const LOCAL_FIRST_TTS_PROVIDERS = new Set(['system', 'openai', 'elevenlabs'])
+function normalizeLocalFirstTTSProvider(value) {
+  const provider = String(value || 'system').trim().toLowerCase()
+  return LOCAL_FIRST_TTS_PROVIDERS.has(provider) ? provider : 'system'
+}
 
 export function getTTSConfig() {
   let stored = {}
   try { stored = JSON.parse(fs.readFileSync(paths.configFile, 'utf-8'))?.tts || {} } catch {}
   return {
-    ttsProvider:     stored.ttsProvider  || 'system',
+    ttsProvider:     normalizeLocalFirstTTSProvider(stored.ttsProvider),
     ttsVoiceId:      stored.ttsVoiceId   || 'system-auto',
     minimaxKey:      { configured: !!(stored.minimaxKey || process.env.MINIMAX_API_KEY || getMinimaxKey()) },
     doubaoKey:       { configured: !!(stored.doubaoKey), value: stored.doubaoKey || '' },
@@ -1814,7 +1832,7 @@ export function getTTSCredentials() {
   let stored = {}
   try { stored = JSON.parse(fs.readFileSync(paths.configFile, 'utf-8'))?.tts || {} } catch {}
   return {
-    provider:       stored.ttsProvider  || 'system',
+    provider:       normalizeLocalFirstTTSProvider(stored.ttsProvider),
     voiceId:        stored.ttsVoiceId   || 'system-auto',
     doubaoKey:      stored.doubaoKey    || process.env.DOUBAO_TTS_API_KEY || '',
     doubaoResourceId: stored.doubaoResourceId || process.env.DOUBAO_TTS_RESOURCE_ID || '',
@@ -1835,6 +1853,10 @@ export function setTTSConfig(updates) {
   for (const [key, val] of Object.entries(updates)) {
     if (!TTS_CONFIG_KEYS.includes(key)) continue
     const trimmed = String(val || '').trim()
+    if (key === 'ttsProvider') {
+      next[key] = normalizeLocalFirstTTSProvider(trimmed)
+      continue
+    }
     if (trimmed) next[key] = trimmed
     else delete next[key]
   }

@@ -28,8 +28,6 @@ import {
   setVoiceConfig,
   setWebSearchConfig,
   switchModel,
-  getSeedanceConfig,
-  setSeedanceConfig,
 } from '../../config.js'
 import { EMBEDDING_PROVIDER_PRESETS } from '../../config.js'
 import { TTS_PROVIDERS, TTS_VOICES } from '../../voice/tts-providers.js'
@@ -39,7 +37,9 @@ import { setConfig, createReminder, cancelReminder, listPendingReminders } from 
 import { getMapServiceSettings, setMapServiceSettings } from '../../map-service.js'
 import { getCodexStatus, loginCodex } from '../../codex-connector.js'
 import { discoverLocalAI } from '../../local-ai-discovery.js'
+import { getManagedMlxStatus, installManagedMlx, startManagedMlx, stopManagedMlx } from '../../local-mlx-manager.js'
 import { getMediaProviderRuntimeConfig, getMediaProviderSettings, setMediaProviderSettings } from '../../media-provider-config.js'
+import { calculateNextDueAt } from '../../capabilities/tools/reminders.js'
 
 function checkLocalOrToken(req, res, url, requireLocalOrToken) {
   if (typeof requireLocalOrToken === 'function') return requireLocalOrToken(req, res, url)
@@ -57,13 +57,31 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
     try {
       const body = await readJsonBody(req)
       const task = String(body.task || '').trim()
-      const due = new Date(String(body.dueAt || ''))
       if (!task) throw new Error('Task is required')
-      if (Number.isNaN(due.getTime()) || due.getTime() <= Date.now()) throw new Error('Timeline must be a future date and time')
+      const recurrenceType = String(body.recurrenceType || 'once').trim().toLowerCase()
+      if (!['once', 'daily', 'weekly', 'monthly'].includes(recurrenceType)) throw new Error('Repeat must be once, daily, weekly or monthly')
+      let recurrenceConfig = null
+      let due
+      if (recurrenceType === 'once') {
+        due = new Date(String(body.dueAt || ''))
+        if (Number.isNaN(due.getTime()) || due.getTime() <= Date.now()) throw new Error('Timeline must be a future date and time')
+      } else {
+        recurrenceConfig = { time: String(body.time || '').trim() }
+        if (recurrenceType === 'weekly') recurrenceConfig.weekday = Number(body.weekday)
+        if (recurrenceType === 'monthly') recurrenceConfig.day_of_month = Number(body.dayOfMonth)
+        due = calculateNextDueAt(recurrenceType, recurrenceConfig, new Date())
+      }
       const dueAt = due.toISOString()
       const systemMessage = `GAI AI reminder: ${task}. Complete every safe and authorized step you can automatically. Verify the result before reporting completion, follow up on unfinished dependencies, and ask the user for the next concrete action only when their input or permission is required.`
-      const result = createReminder({ dueAt, task, systemMessage, source: 'gai-control-center' })
-      jsonResponse(res, 200, { ok: true, id: Number(result.lastInsertRowid), dueAt, task })
+      const result = createReminder({
+        dueAt,
+        task,
+        systemMessage,
+        source: 'gai-control-center',
+        recurrenceType: recurrenceType === 'once' ? null : recurrenceType,
+        recurrenceConfig,
+      })
+      jsonResponse(res, 200, { ok: true, id: Number(result.lastInsertRowid), dueAt, task, recurrenceType, recurrenceConfig })
     } catch (err) {
       jsonResponse(res, 400, { ok: false, error: err.message })
     }
@@ -88,15 +106,6 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
     const media = getMediaProviderSettings()
     const minimaxConfigured = !!(globalThis.process?.env?.MINIMAX_API_KEY || getMinimaxKey())
     media.providers = media.providers.map(provider => provider.id === 'minimax' ? { ...provider, configured: minimaxConfigured } : provider)
-    const seedance = getSeedanceConfig()
-    media.seedance = {
-      configured: seedance.configured,
-      model: seedance.model,
-      baseURL: seedance.baseURL,
-    }
-    media.videoProviders = media.videoProviders.map(provider => provider.id === 'seedance'
-      ? { ...provider, configured: seedance.configured }
-      : provider)
     jsonResponse(res, 200, { ok: true, media })
     return true
   }
@@ -107,15 +116,11 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
       if (body.provider === 'minimax' && !(globalThis.process?.env?.MINIMAX_API_KEY || getMinimaxKey())) {
         throw new Error('MiniMax media requires a configured API key')
       }
-      if (body.seedanceApiKey || body.seedanceModel || body.seedanceBaseURL) {
-        setSeedanceConfig({ apiKey: body.seedanceApiKey, model: body.seedanceModel, baseURL: body.seedanceBaseURL })
-      }
       setMediaProviderSettings(body)
       const runtime = getMediaProviderRuntimeConfig()
       removeProvider('openai-media')
       removeProvider('stable-diffusion')
       removeProvider('gemini-media')
-      removeProvider('doubao-media')
       if (runtime.provider === 'openai-compatible' && runtime.openaiApiKey) {
         replaceProvider(new OpenAICompatibleMediaProvider({ apiKey: runtime.openaiApiKey, baseURL: runtime.openaiBaseURL, model: runtime.openaiModel }))
       }
@@ -125,21 +130,12 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
       if (runtime.provider === 'gemini' && runtime.geminiApiKey) {
         replaceProvider(new GeminiMediaProvider({ apiKey: runtime.geminiApiKey, model: runtime.geminiImageModel }))
       }
-      if (runtime.provider === 'doubao' && runtime.doubaoApiKey && runtime.doubaoImageModel) {
-        replaceProvider(new OpenAICompatibleMediaProvider({
-          name: 'doubao-media', apiKey: runtime.doubaoApiKey,
-          baseURL: runtime.doubaoBaseURL, model: runtime.doubaoImageModel,
-        }))
-      }
       const preferred = {
         minimax: 'minimax', 'openai-compatible': 'openai-media', 'stable-diffusion': 'stable-diffusion',
-        gemini: 'gemini-media', doubao: 'doubao-media',
+        gemini: 'gemini-media',
       }[runtime.provider]
       setPreferredProvider('image', preferred || '')
       const media = getMediaProviderSettings()
-      const seedance = getSeedanceConfig()
-      media.seedance = { configured: seedance.configured, model: seedance.model, baseURL: seedance.baseURL }
-      media.videoProviders = media.videoProviders.map(item => item.id === 'seedance' ? { ...item, configured: seedance.configured } : item)
       jsonResponse(res, 200, { ok: true, media })
     } catch (err) {
       jsonResponse(res, 400, { ok: false, error: err.message })
@@ -148,7 +144,28 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
   }
 
   if (req.method === 'GET' && url.pathname === '/settings/local-ai') {
-    jsonResponse(res, 200, { ok: true, localAI: await discoverLocalAI() })
+    jsonResponse(res, 200, { ok: true, localAI: await discoverLocalAI(), mlxRuntime: getManagedMlxStatus() })
+    return true
+  }
+
+  if (req.method === 'POST' && url.pathname === '/settings/local-ai/mlx/install') {
+    try {
+      const body = await readJsonBody(req)
+      jsonResponse(res, 202, { ok: true, mlxRuntime: installManagedMlx({ model: body.model, startAfterInstall: true }) })
+    } catch (err) { jsonResponse(res, 400, { ok: false, error: err.message }) }
+    return true
+  }
+
+  if (req.method === 'POST' && url.pathname === '/settings/local-ai/mlx/start') {
+    try {
+      const body = await readJsonBody(req)
+      jsonResponse(res, 200, { ok: true, mlxRuntime: await startManagedMlx({ model: body.model, autoStart: true }) })
+    } catch (err) { jsonResponse(res, 400, { ok: false, error: err.message }) }
+    return true
+  }
+
+  if (req.method === 'POST' && url.pathname === '/settings/local-ai/mlx/stop') {
+    jsonResponse(res, 200, { ok: true, mlxRuntime: stopManagedMlx({ disableAutoStart: true }) })
     return true
   }
 
@@ -166,6 +183,10 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
   if (req.method === 'GET' && url.pathname === '/settings') {
     const status = getActivationStatus()
     const minimaxKey = getMinimaxKey()
+    const providerSummaries = getProviderSummaries()
+    const visibleProviders = process.versions?.electron
+      ? Object.fromEntries(Object.entries(providerSummaries).filter(([name]) => ['offline', 'codex', 'openai', 'custom'].includes(name)))
+      : providerSummaries
     jsonResponse(res, 200, {
       agent_name: getAgentName(),
       llm: {
@@ -178,7 +199,7 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
         thinking: config.thinking === true,
         apiKey: config.apiKey || '',
       },
-      providers: getProviderSummaries(),
+      providers: visibleProviders,
       minimax: {
         configured: !!(globalThis.process?.env?.MINIMAX_API_KEY || minimaxKey),
       },
@@ -205,6 +226,9 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
   if (req.method === 'POST' && url.pathname === '/settings/model') {
     try {
       const { provider, apiKey, model, baseURL } = await readJsonBody(req)
+      if (process.versions?.electron && provider && !['offline', 'codex', 'openai', 'custom'].includes(String(provider).toLowerCase())) {
+        throw new Error('The desktop local-first profile only permits Offline Super, local/custom, OpenAI or ChatGPT sign-in')
+      }
       const result = provider || apiKey || baseURL
         ? await saveLLMSettings({ provider, apiKey, model, baseURL })
         : switchModel(model)
@@ -326,6 +350,7 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
 
   if (req.method === 'POST' && url.pathname === '/settings/minimax') {
     try {
+      if (process.versions?.electron) throw new Error('MiniMax is disabled by the desktop local/overseas-only policy')
       const { apiKey } = await readJsonBody(req)
       const trimmed = String(apiKey || '').trim()
       if (!trimmed) throw new Error('API key cannot be empty')

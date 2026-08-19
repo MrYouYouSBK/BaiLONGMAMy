@@ -20,6 +20,7 @@ import { runRuntimeInjector } from './context/runtime-injector.js'
 import { selectContextSections } from './context/section-gate.js'
 import { getDB, getConfig, setConfig, getKnownEntities, getOrInitBirthTime, insertConversation, insertMemory, getRecentConversationPartners, getDueReminders, markReminderFired, advanceReminderDueAt, getNextPendingReminder, getMemoryCount, getRecentConversationTimeline, loadFocusStack, loadThreadState, saveThreadState, setCurrentFocusTopic, setCurrentThreadId, updateUserMessageFocusTopic, reassignConversationsThread, insertActionLog } from './db.js'
 import { calculateNextDueAt, autoSpeakForVoiceReply, detectOpenFollowupQuestion } from './capabilities/executor.js'
+import { autoStartManagedMlx } from './local-mlx-manager.js'
 import { pushMessage } from './inbound-message.js'
 import { popMessage, hasMessages, hasUserMessages, getQueueSnapshot, setInterruptCallback, requeueMessage } from './queue.js'
 import { startTUI } from './tui.js'
@@ -223,6 +224,7 @@ if (persistedTask) {
 
 // Register provider (MiniMax handles multimedia capabilities, independent of the LLM choice).
 function registerMinimaxIfAvailable() {
+  if (process.versions?.electron) return
   const envKey = process.env.MINIMAX_API_KEY
   const configKey = config.provider === 'minimax' ? config.apiKey : null
   const storedKey = _getMinimaxKey()
@@ -246,20 +248,11 @@ function registerOptionalMediaProviders() {
   if (media.provider === 'gemini' && media.geminiApiKey) {
     registerProvider(new GeminiMediaProvider({ apiKey: media.geminiApiKey, model: media.geminiImageModel }))
   }
-  if (media.provider === 'doubao' && media.doubaoApiKey && media.doubaoImageModel) {
-    registerProvider(new OpenAICompatibleMediaProvider({
-      name: 'doubao-media',
-      apiKey: media.doubaoApiKey,
-      baseURL: media.doubaoBaseURL,
-      model: media.doubaoImageModel,
-    }))
-  }
   const preferred = {
     minimax: 'minimax',
     'openai-compatible': 'openai-media',
     'stable-diffusion': 'stable-diffusion',
     gemini: 'gemini-media',
-    doubao: 'doubao-media',
   }[media.provider]
   setPreferredProvider('image', preferred || '')
 }
@@ -775,6 +768,25 @@ function enqueueDueReminders() {
       recurrence_type: reminder.recurrence_type,
     })
   }
+}
+
+// Reminders are a local desktop responsibility and must not depend on an LLM
+// provider being activated or available.  The consciousness loop also checks
+// reminders so it can wake exactly at the next due time; this independent
+// scheduler is the reliable offline fallback (the database updates above make
+// concurrent checks idempotent).
+function startLocalReminderScheduler() {
+  const check = () => {
+    try {
+      enqueueDueReminders()
+    } catch (error) {
+      console.warn('[reminders] local scheduler check failed:', error?.message || error)
+    }
+  }
+  check()
+  const timer = setInterval(check, 15_000)
+  timer.unref?.()
+  return timer
 }
 
 // Common LLM failure handler: set rate-limit on 429, requeue message, drop after max retries
@@ -1769,6 +1781,7 @@ async function main() {
       startConsciousnessLoop({ runImmediateTick: runtimePolicy.runImmediateStartupTick }).catch(err => console.error('[system] Main loop failed to start:', err))
     },
   })
+  startLocalReminderScheduler()
   // 仅在配置了正式预警 API 与目标地区时启用；避免把普通路径数据当作安全预警。
   startTyphoonAlertMonitor()
   reportStartupProgress('api', 'running', `等待 127.0.0.1:${apiPort} 就绪`, '正在等待本地 API 就绪')
@@ -1776,6 +1789,7 @@ async function main() {
 
   // 恢复重启前未完成的 AI 视频生成任务（继续轮询，避免面板永远卡“生成中”）
   try { resumePendingVideoJobs() } catch (err) { console.warn('[aivideo] resume failed:', err.message) }
+  autoStartManagedMlx().catch(err => console.warn('[mlx] automatic local runtime start failed:', err.message))
 
   // Start TUI
   startTUI('ID:000001')

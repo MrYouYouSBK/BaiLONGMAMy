@@ -53,6 +53,13 @@ export function getLocalHardwareProfile() {
   }
 }
 
+export function recommendMlxModel(memoryGB = 0) {
+  const memory = Math.max(0, Number(memoryGB) || 0)
+  if (memory >= 32) return 'mlx-community/Qwen3-14B-4bit'
+  if (memory >= 16) return 'mlx-community/Qwen3-8B-4bit'
+  return 'mlx-community/Llama-3.2-3B-Instruct-4bit'
+}
+
 function modelNames(endpoint, data) {
   const raw = endpoint.id === 'ollama' ? data?.models : data?.data
   return (Array.isArray(raw) ? raw : []).map(item => String(item?.name || item?.model || item?.id || '').trim()).filter(Boolean)
@@ -90,6 +97,7 @@ export async function discoverLocalAI({ fetchImpl = fetch, hardwareProfile = nul
     providers,
     recommended: preferred ? { id: preferred.id, label: preferred.label, baseURL: preferred.baseURL, model: preferred.models[0] || '' } : null,
     hardware,
+    mlxRecommendation: hardware.appleSilicon ? recommendMlxModel(hardware.memoryGB) : null,
     checkedAt: new Date().toISOString(),
   }
 }

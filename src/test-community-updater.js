@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import updater from '../electron/community-updater.cjs'
 
-const { compareVersions, normalizeVersion, parseChecksumFile, selectReleaseAssets, sha256File } = updater
+const { compareVersions, normalizeVersion, parseChecksumFile, parseCodesignDetails, selectReleaseAssets, sha256File } = updater
 
 assert.equal(normalizeVersion('community-v3.2.0'), '3.2.0')
 assert.equal(compareVersions('3.2.0', '3.1.9'), 1)
@@ -20,6 +20,12 @@ const release = {
 }
 assert.equal(selectReleaseAssets(release, 'arm64').zip.name, 'GAI-AI-3.2.0-mac-arm64.zip')
 assert.throws(() => selectReleaseAssets(release, 'x64'), /missing GAI-AI-3\.2\.0-mac-x64\.zip/)
+
+assert.deepEqual(parseCodesignDetails(`Authority=Developer ID Application: GAI AI (TEAM123456)\nAuthority=Developer ID Certification Authority\nTeamIdentifier=TEAM123456\n`), {
+  teamIdentifier: 'TEAM123456',
+  authorities: ['Developer ID Application: GAI AI (TEAM123456)', 'Developer ID Certification Authority'],
+})
+assert.equal(parseCodesignDetails('TeamIdentifier=not set').teamIdentifier, '')
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'gai-updater-test-'))
 try {

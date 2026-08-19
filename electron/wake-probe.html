@@ -12,6 +12,7 @@
   let node = null;
   let restartTimer = null;
   let generation = 0;
+  let lastDeviceRestart = 0;
 
   const report = (status, detail = '') => window.wakeProbe?.reportStatus(status, detail);
   const shouldListen = () => config.enabled !== false && config.conversationActive !== true;
@@ -37,10 +38,14 @@
     const current = ++generation;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: {
-        echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1,
+        echoCancellation: config.noiseSuppressionEnabled !== false,
+        noiseSuppression: config.noiseSuppressionEnabled !== false,
+        autoGainControl: config.noiseSuppressionEnabled !== false,
+        channelCount: 1,
+        sampleSize: 16, latency: { ideal: 0.02 },
       }, video: false });
       if (current !== generation || !shouldListen()) { stream.getTracks().forEach(track => track.stop()); stream = null; return; }
-      context = new AudioContext();
+      context = new AudioContext({ latencyHint: 'interactive' });
       if (context.state === 'suspended') await context.resume();
       const sourceRate = context.sampleRate;
       const source = context.createMediaStreamSource(stream);
@@ -83,11 +88,31 @@
       URL.revokeObjectURL(url);
       node = new AudioWorkletNode(context, 'gai-wake-resampler', { numberOfInputs: 1, numberOfOutputs: 1 });
       node.port.onmessage = event => window.wakeProbe?.sendPcm(event.data.buffer);
+      const highPass = context.createBiquadFilter();
+      highPass.type = 'highpass'; highPass.frequency.value = 85; highPass.Q.value = 0.7;
+      const compressor = context.createDynamicsCompressor();
+      compressor.threshold.value = -42; compressor.knee.value = 18;
+      compressor.ratio.value = 3; compressor.attack.value = 0.004; compressor.release.value = 0.18;
       const silent = context.createGain(); silent.gain.value = 0;
-      source.connect(node); node.connect(silent); silent.connect(context.destination);
-      stream.getAudioTracks().forEach(track => track.addEventListener('ended', () => { stop('device-ended').then(() => retry('microphone ended')); }, { once: true }));
-      context.addEventListener('statechange', () => { if (context?.state === 'closed' && shouldListen()) retry('audio context closed'); });
-      report('running', `source=${sourceRate} target=${TARGET_RATE}`);
+      source.connect(highPass); highPass.connect(compressor); compressor.connect(node); node.connect(silent); silent.connect(context.destination);
+      stream.getAudioTracks().forEach(track => {
+        track.addEventListener('ended', () => { stop('device-ended').then(() => retry('microphone ended')); }, { once: true });
+        track.addEventListener('mute', () => {
+          const mutedGeneration = generation;
+          setTimeout(() => {
+            if (mutedGeneration === generation && track.muted && shouldListen()) stop('device-muted').then(() => retry('microphone remained muted'));
+          }, 3000);
+        });
+        track.addEventListener('unmute', () => report('running', 'microphone resumed'));
+      });
+      context.addEventListener('statechange', async () => {
+        if (!context || !shouldListen()) return;
+        if (context.state === 'suspended') {
+          try { await context.resume(); report('running', 'audio context resumed'); } catch { retry('audio context suspended'); }
+        } else if (context.state === 'closed') retry('audio context closed');
+      });
+      const settings = stream.getAudioTracks()[0]?.getSettings?.() || {};
+      report('running', `source=${sourceRate} target=${TARGET_RATE} aec=${settings.echoCancellation !== false} ns=${settings.noiseSuppression !== false} agc=${settings.autoGainControl !== false}`);
     } catch (error) {
       await stop('error');
       retry(error?.message || String(error));
@@ -101,9 +126,18 @@
 
   window.wakeProbe?.onConfig(apply);
   window.wakeProbe?.getConfig().then(apply).catch(() => apply(config));
-  setInterval(() => {
+  navigator.mediaDevices?.addEventListener?.('devicechange', () => {
+    if (!shouldListen() || Date.now() - lastDeviceRestart < 1500) return;
+    lastDeviceRestart = Date.now();
+    stop('device-change').then(start);
+  });
+  window.addEventListener('online', () => { if (shouldListen() && !stream) start(); });
+  window.addEventListener('pageshow', () => { if (shouldListen() && !stream) start(); });
+  setInterval(async () => {
     if (shouldListen() && (!stream || !stream.active || context?.state === 'closed')) retry('health check restart');
-    else if (stream) report('heartbeat', context?.state || 'unknown');
+    else if (context?.state === 'suspended') {
+      try { await context.resume(); report('running', 'health check resumed audio'); } catch { retry('health check could not resume audio'); }
+    } else if (stream) report('heartbeat', context?.state || 'unknown');
   }, 15000);
 })();
 </script>

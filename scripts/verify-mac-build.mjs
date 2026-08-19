@@ -8,6 +8,7 @@ import { spawn, spawnSync } from 'node:child_process'
 const requestedArch = process.argv[2]
 const expectedMachine = requestedArch === 'arm64' ? 'arm64' : requestedArch === 'x64' ? 'x86_64' : null
 const oppositeArch = requestedArch === 'arm64' ? 'x64' : 'arm64'
+const requireTrustedDistribution = process.env.GAI_REQUIRE_MAC_SIGNING === 'true'
 
 if (!expectedMachine) {
   console.error('[verify:mac] usage: node scripts/verify-mac-build.mjs <arm64|x64>')
@@ -34,6 +35,28 @@ function assertMachine(filePath, label) {
   console.log(`[verify:mac] ${label}: ${description}`)
 }
 
+function assertTrustedApp(appRoot) {
+  run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appRoot])
+  const details = spawnSync('/usr/bin/codesign', ['-dvvv', appRoot], { encoding: 'utf8' })
+  if (details.status !== 0) fail(`could not inspect Developer ID signature:\n${details.stderr || details.stdout}`)
+  const signature = `${details.stdout || ''}\n${details.stderr || ''}`
+  if (!/Authority=Developer ID Application:/.test(signature)) fail(`app is not signed with Developer ID Application:\n${signature}`)
+  if (!/TeamIdentifier=(?!not set)\S+/.test(signature)) fail(`app signature has no Apple TeamIdentifier:\n${signature}`)
+  run('/usr/bin/xcrun', ['stapler', 'validate', appRoot])
+  run('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appRoot])
+
+  const quarantineRoot = mkdtempSync(join(tmpdir(), `gai-ai-quarantine-${requestedArch}-`))
+  const quarantinedApp = join(quarantineRoot, 'GAI AI.app')
+  try {
+    run('/usr/bin/ditto', [appRoot, quarantinedApp])
+    run('/usr/bin/xattr', ['-w', 'com.apple.quarantine', `0083;${Math.floor(Date.now() / 1000).toString(16)};Safari;`, quarantinedApp])
+    run('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', quarantinedApp])
+  } finally {
+    rmSync(quarantineRoot, { recursive: true, force: true })
+  }
+  console.log('[verify:mac] Developer ID, notarization ticket, Gatekeeper and Safari-quarantine assessment passed')
+}
+
 const distFiles = readdirSync('dist')
 const expectedPrefix = 'GAI-AI-'
 const expectedSuffixes = [`-mac-${requestedArch}.dmg`, `-mac-${requestedArch}.zip`]
@@ -53,6 +76,7 @@ for (const suffix of expectedSuffixes) {
 
 const dmgName = distFiles.find(name => name.startsWith(expectedPrefix) && name.endsWith(`-mac-${requestedArch}.dmg`))
 const dmgPath = join(process.cwd(), 'dist', dmgName)
+if (requireTrustedDistribution) run('/usr/bin/xcrun', ['stapler', 'validate', dmgPath])
 const mountDir = mkdtempSync(join(tmpdir(), `gai-ai-${requestedArch}-`))
 let mounted = false
 let child
@@ -73,6 +97,8 @@ try {
   assertMachine(executable, 'Electron executable')
   assertMachine(sqliteBinding, 'better-sqlite3 binding')
   assertMachine(speechHelper, 'native speech helper')
+  if (requireTrustedDistribution) assertTrustedApp(appRoot)
+  else console.log('[verify:mac] unsigned PR smoke mode; release publishing is disabled for this artifact')
 
   const smokeRoot = mkdtempSync(join(tmpdir(), 'gai-ai-smoke-'))
   child = spawn(executable, [], {

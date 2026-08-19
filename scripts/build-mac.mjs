@@ -15,6 +15,16 @@ if (invalidArgs.length > 0) {
 
 const requestedArchs = args.filter((arg) => supportedArchs.has(arg));
 const archs = requestedArchs.length > 0 ? requestedArchs : ['x64', 'arm64'];
+const requireTrustedDistribution = process.env.GAI_REQUIRE_MAC_SIGNING === 'true';
+
+if (requireTrustedDistribution) {
+  const required = ['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_API_KEY', 'APPLE_API_KEY_ID', 'APPLE_API_ISSUER'];
+  const missing = required.filter((name) => !String(process.env[name] || '').trim());
+  if (missing.length > 0) {
+    console.error(`[build:mac] trusted distribution is required, but these signing inputs are missing: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -51,11 +61,13 @@ for (const arch of archs) {
   ]);
 
   console.log(`[build:mac] packaging ${arch} DMG`);
-  run('node', [
+  const builderArgs = [
     './node_modules/electron-builder/cli.js',
     '--mac',
     `--${arch}`,
     '--publish',
     'never',
-  ]);
+    `--config.mac.notarize=${requireTrustedDistribution ? 'true' : 'false'}`,
+  ];
+  run('node', builderArgs);
 }

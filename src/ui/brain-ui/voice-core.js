@@ -590,7 +590,7 @@ export function createVoiceCore({ canvas, transcript, getChatInput, getSendMessa
     return {
       echoCancellation: true,
       noiseSuppression: true,
-      autoGainControl: false,
+      autoGainControl: true,
       channelCount: 1,
       ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
     };
