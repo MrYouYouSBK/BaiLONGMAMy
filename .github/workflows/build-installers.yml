@@ -49,6 +49,7 @@ jobs:
           npm run test:voice-continuous
           npm run test:gai-v31
           npm run test:gai-v32
+          npm run test:startup-task-briefing
           npm run test:local-ai
           npm run test:community-updater
           npm run test:websocket-security

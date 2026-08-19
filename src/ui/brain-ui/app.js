@@ -16,8 +16,9 @@ import { attachJarvisAudioGraph, attachJarvisFx, isFxEnabledForVoice, setFxEnabl
 import { initAudioOutputRouting, applyOutputSink, listOutputDevices, getOutputPreference, setOutputPreference } from "./audio-output.js";
 import { initGaiControlCenter } from "./gai-control-center.js";
 import { initVoiceProfileUI } from "./voice-profile-ui.js";
-import { initUiLocale } from "./ui-i18n.js";
+import { currentUiLocale, initUiLocale } from "./ui-i18n.js";
 import { initEntryCeremony } from "./entry-ceremony.js";
+import { formatStartupTaskBriefing } from "./startup-task-briefing.js";
 renderBrainUiApp(document.body);
 initUiLocale();
 initEntryCeremony();
@@ -57,6 +58,7 @@ const SUPPRESS_UPDATES_KEY = "bailongma_suppress_update_notifications";
 let agentName = DEFAULT_AGENT_NAME;
 let currentUiZoom = DEFAULT_UI_ZOOM;
 let chat = null;
+let displayedStartupTaskBriefingId = null;
 // 由 initSettings() 内部赋值，供 chat.js 的斜杠命令打开设置面板
 let openSettingsRef = null;
 
@@ -1284,6 +1286,21 @@ function extractNids(memList) {
 
 function handle({ type, data = {} }) {
   switch (type) {
+    case "startup_task_briefing": {
+      const launchId = String(data.launchId || data.generatedAt || "startup");
+      if (displayedStartupTaskBriefingId === launchId) break;
+      displayedStartupTaskBriefingId = launchId;
+      openChat(false);
+      addMsg("jarvis", formatStartupTaskBriefing(data, { language: currentUiLocale() }), {
+        alert: data.hasItems === true,
+        pending: data.hasItems === true,
+        messageId: `startup-task-${launchId}`,
+        source: "startup-task-briefing",
+      });
+      if (!data.hasItems) openChat(true);
+      window.dispatchEvent(new CustomEvent("gai:startup-task-briefing", { detail: data }));
+      break;
+    }
     case "message_received": {
       currentPath = "l1";
       // 兜底：上一轮若被打断、message/response 均未到达，实时气泡会成孤儿、流式会话可能还挂着麦克风
@@ -2118,11 +2135,10 @@ if (MEMORY_GRAPH_ENABLED) {
     loadMemories();
   }, 5 * 60 * 1000);
 }
-connectSSE();
 loadAgentProfile();
 initPersonCard();
 initDocPanel().catch((err) => console.warn('[DocPanel] init failed:', err));
-chat.restoreChatHistory();
+chat.restoreChatHistory().finally(connectSSE);
 chat.unlockAudioOnFirstGesture();
 
 bootstrapScene();  // Scene 架构 shell(/scene):声明式 Agent-UI 投影层。
