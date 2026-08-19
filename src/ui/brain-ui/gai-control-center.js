@@ -11,7 +11,7 @@ export function createGaiControlMarkup() {
   <div class="settings-tab active" data-tab="gai-control">
     <div class="gai-control-hero">
       <div>
-        <div class="gai-control-kicker">GAI AI 3.2</div>
+        <div class="gai-control-kicker">GAI AI 3.3</div>
         <h2 ${t('Local-first desktop control center', '本機優先桌面控制中心')}>Local-first desktop control center</h2>
         <p ${t('Always-on multilingual voice, Apple Silicon acceleration, verified updates, screen sharing and timelines in one place.', '常駐多語音、Apple 晶片加速、驗證更新、螢幕分享與時間線集中管理。')}>Always-on multilingual voice, Apple Silicon acceleration, verified updates, screen sharing and timelines in one place.</p>
       </div>
@@ -47,10 +47,16 @@ export function createGaiControlMarkup() {
 
       <section class="gai-card">
         <h3 ${t('AI engine', 'AI 引擎')}>AI engine</h3>
-        <p ${t('No setup: GAI Offline Super. Optional local Ollama/LM Studio or OpenAI Codex with your ChatGPT account—no API key.', '無需配置即可使用 GAI Offline Super；也可連接 Ollama／LM Studio，或用 ChatGPT 帳戶登入 OpenAI Codex，無需 API Key。')}>No setup: GAI Offline Super. Optional local Ollama/LM Studio or OpenAI Codex with your ChatGPT account—no API key.</p>
+        <p ${t('Local is first: GAI Offline Super, managed Apple MLX, Ollama or LM Studio. Cloud sign-in is optional and opens in your normal browser.', '本地優先：GAI Offline Super、Apple MLX、Ollama 或 LM Studio；雲端登入僅為選項，並在一般瀏覽器開啟。')}>Local is first: GAI Offline Super, managed Apple MLX, Ollama or LM Studio. Cloud sign-in is optional and opens in your normal browser.</p>
+        <label><span ${t('Apple MLX model', 'Apple MLX 模型')}>Apple MLX model</span>
+          <select id="gai-mlx-model"><option value="mlx-community/Llama-3.2-3B-Instruct-4bit">Llama 3.2 3B · 4-bit</option><option value="mlx-community/Qwen3-8B-4bit">Qwen3 8B · 4-bit</option><option value="mlx-community/Qwen3-14B-4bit">Qwen3 14B · 4-bit</option></select>
+        </label>
         <div class="gai-actions">
           <button type="button" id="gai-use-offline" ${t('Use Offline Super', '使用 Offline Super')}>Use Offline Super</button>
           <button type="button" id="gai-detect-local-ai" ${t('Detect local AI', '檢測本地 AI')}>Detect local AI</button>
+          <button type="button" id="gai-install-mlx" ${t('Install & start MLX', '安裝並啟動 MLX')}>Install & start MLX</button>
+          <button type="button" id="gai-start-mlx" ${t('Start MLX', '啟動 MLX')}>Start MLX</button>
+          <button type="button" id="gai-stop-mlx" ${t('Stop MLX', '停止 MLX')}>Stop MLX</button>
           <button type="button" id="gai-use-local-ai" disabled ${t('Use recommended local model', '使用建議本機模型')}>Use recommended local model</button>
           <button type="button" id="gai-codex-login" ${t('Sign in with ChatGPT', '使用 ChatGPT 登入')}>Sign in with ChatGPT</button>
         </div>
@@ -60,13 +66,13 @@ export function createGaiControlMarkup() {
       <section class="gai-card">
         <h3 ${t('Maps', '地圖服務')}>Maps</h3>
         <label><span ${t('Provider', '服務商')}>Provider</span>
-          <select id="gai-map-provider"><option value="osm">OpenStreetMap (no key)</option><option value="google">Google Maps</option><option value="amap">Amap / 高德</option></select>
+          <select id="gai-map-provider"><option value="osm">OpenStreetMap (no key)</option><option value="google">Google Maps</option></select>
         </label>
         <label id="gai-map-key-row"><span ${t('Browser key', 'Web 端 Key')}>Browser key</span><input id="gai-map-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
-        <label id="gai-map-security-row"><span>Amap securityJsCode</span><input id="gai-map-security" type="password" autocomplete="new-password" placeholder="Amap only"></label>
+        <label id="gai-map-security-row" hidden><span>Legacy map security code</span><input id="gai-map-security" type="password" autocomplete="new-password"></label>
         <div class="gai-actions"><button type="button" id="gai-save-map" ${t('Save map', '保存地圖')}>Save map</button></div>
         <p ${t('If the Google key page will not open, use these steps in order:', '若 Google Key 頁面打不開，請依序使用：')}>If the Google key page will not open, use these steps in order:</p>
-        <div class="gai-links"><a href="https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fconsole.cloud.google.com%2F" target="_blank" rel="noreferrer">1. Choose Google account ↗</a><a href="https://console.cloud.google.com/projectselector2/home/dashboard" target="_blank" rel="noreferrer">2. Select / create project ↗</a><a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" rel="noreferrer">3. Enable Maps API ↗</a><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">4. Create key ↗</a><a href="https://console.amap.com/dev/key/app" target="_blank" rel="noreferrer">Amap key ↗</a></div>
+        <div class="gai-links"><a href="https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fconsole.cloud.google.com%2F" target="_blank" rel="noreferrer">1. Choose Google account ↗</a><a href="https://console.cloud.google.com/projectselector2/home/dashboard" target="_blank" rel="noreferrer">2. Select / create project ↗</a><a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" rel="noreferrer">3. Enable Maps API ↗</a><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">4. Create key ↗</a></div>
         <div class="gai-inline-feedback" id="gai-map-feedback"></div>
       </section>
 
@@ -74,7 +80,7 @@ export function createGaiControlMarkup() {
         <h3 ${t('Web search', '搜索引擎')}>Web search</h3>
         <p ${t('Use your normal Google browser session; GAI AI never reads your Google password or token. Search history is stored only on this device.', '使用瀏覽器現有的 Google 登入；GAI AI 不會讀取 Google 密碼或 Token。搜索紀錄只保存在此裝置。')}>Use your normal Google browser session; GAI AI never reads your Google password or token. Search history is stored only on this device.</p>
         <label><span ${t('Google search', 'Google 搜索')}>Google search</span><input id="gai-google-query" type="search" placeholder="Search with your Google account"></label>
-        <div class="gai-actions"><button type="button" id="gai-google-search" ${t('Search Google', '用 Google 搜索')}>Search Google</button><button type="button" id="gai-clear-search-history" ${t('Clear local history', '清除本機紀錄')}>Clear local history</button></div>
+        <div class="gai-actions"><button type="button" id="gai-google-login" ${t('Continue on Google page', '前往 Google 頁面登入')}>Continue on Google page</button><button type="button" id="gai-google-search" ${t('Search Google', '用 Google 搜索')}>Search Google</button><button type="button" id="gai-clear-search-history" ${t('Clear local history', '清除本機紀錄')}>Clear local history</button></div>
         <div class="gai-search-history" id="gai-search-history"></div>
         <label><span ${t('Preferred engine', '首選引擎')}>Preferred engine</span>
           <select id="gai-search-provider"><option value="auto">Automatic</option><option value="google">Google (Serper)</option><option value="brave">Brave</option><option value="bing">Bing</option><option value="duckduckgo">DuckDuckGo</option><option value="tavily">Tavily</option><option value="jina">Jina</option></select>
@@ -88,10 +94,10 @@ export function createGaiControlMarkup() {
         <h3 ${t('Voice recognition', '語音識別')}>Voice recognition</h3>
         <label><span ${t('Recognition language', '識別語言')}>Recognition language</span><select id="gai-voice-language"><option value="multilingual">中文 + English + Bahasa Melayu (default)</option><option value="bilingual">中文 + English</option><option value="en-US">English</option><option value="zh-CN">中文</option><option value="ms-MY">Bahasa Melayu</option></select></label>
         <label><span ${t('Speech provider', '語音服務商')}>Speech provider</span>
-          <select id="gai-voice-provider"><option value="local">Windows / macOS Native</option><option value="aliyun">Alibaba Cloud</option><option value="volcengine">Volcengine</option><option value="tencent">Tencent Cloud</option><option value="xunfei">iFlytek</option></select>
+          <select id="gai-voice-provider"><option value="local">Windows / macOS Native · local only</option></select>
         </label>
         <div class="gai-actions"><button type="button" id="gai-save-voice" ${t('Save voice', '保存語音')}>Save voice</button><button type="button" id="gai-request-mic" ${t('Allow microphone', '允許麥克風')}>Allow microphone</button></div>
-        <div class="gai-links"><a href="https://platform.openai.com/audio" target="_blank" rel="noreferrer">OpenAI audio ↗</a><a href="https://dashscope.console.aliyun.com" target="_blank" rel="noreferrer">Alibaba ↗</a><a href="https://console.volcengine.com/speech" target="_blank" rel="noreferrer">Volcengine ↗</a></div>
+        <p ${t('Audio stays on this device. Apple voice processing provides echo cancellation, noise suppression and automatic gain control.', '音訊保留在本機；Apple 語音處理提供回音消除、降噪及自動增益。')}>Audio stays on this device. Apple voice processing provides echo cancellation, noise suppression and automatic gain control.</p>
         <div class="gai-inline-feedback" id="gai-voice-feedback"></div>
       </section>
 
@@ -100,12 +106,18 @@ export function createGaiControlMarkup() {
         <label class="gai-switch-row"><span ${t('Always listen for wake phrase', '常駐聆聽喚醒詞')}>Always listen for wake phrase</span><input id="gai-wake-enabled" type="checkbox"></label>
         <label><span ${t('Wake trigger', '喚醒方式')}>Wake trigger</span><select id="gai-wake-trigger"><option value="phrase">GAI AI / Hey GAI</option><option value="sound">Specific sound</option></select></label>
         <label class="gai-switch-row"><span ${t('Double-clap wake sound', '雙拍手聲喚醒')}>Double-clap wake sound</span><input id="gai-double-clap" type="checkbox"></label>
+        <label class="gai-switch-row"><span ${t('Echo cancellation & noise reduction', '回音消除與降噪')}>Echo cancellation & noise reduction</span><input id="gai-noise-suppression" type="checkbox"></label>
         <label class="gai-switch-row"><span ${t('Enable screen sharing', '啟用螢幕分享')}>Enable screen sharing</span><input id="gai-screen-sharing" type="checkbox"></label>
         <label class="gai-switch-row"><span ${t('Play startup music', '播放啟動音樂')}>Play startup music</span><input id="gai-startup-music" type="checkbox"></label>
+        <label class="gai-switch-row"><span ${t('Run at login for wake & reminders', '登入時啟動喚醒與提醒')}>Run at login for wake & reminders</span><input id="gai-launch-at-login" type="checkbox"></label>
         <div class="gai-actions"><button type="button" id="gai-attach-screen" ${t('Attach current screen', '附加目前螢幕')}>Attach current screen</button></div>
         <hr>
         <label><span ${t('Task', '任務')}>Task</span><input id="gai-reminder-task" type="text" placeholder="What must be completed?"></label>
-        <label><span ${t('Timeline', '時間線')}>Timeline</span><input id="gai-reminder-due" type="datetime-local"></label>
+        <label><span ${t('Repeat', '重複')}>Repeat</span><select id="gai-reminder-recurrence"><option value="once">Once</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+        <label id="gai-reminder-once-row"><span ${t('Timeline', '時間線')}>Timeline</span><input id="gai-reminder-due" type="datetime-local"></label>
+        <label id="gai-reminder-time-row" hidden><span ${t('Time', '時間')}>Time</span><input id="gai-reminder-time" type="time" value="09:00"></label>
+        <label id="gai-reminder-weekday-row" hidden><span ${t('Weekday', '星期')}>Weekday</span><select id="gai-reminder-weekday"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label>
+        <label id="gai-reminder-monthday-row" hidden><span ${t('Day of month', '每月日期')}>Day of month</span><input id="gai-reminder-monthday" type="number" min="1" max="31" value="1"></label>
         <div class="gai-actions"><button type="button" id="gai-add-reminder" ${t('Add automatic follow-up', '加入自動跟進')}>Add automatic follow-up</button><button type="button" id="gai-refresh-reminders" ${t('Refresh', '重新整理')}>Refresh</button></div>
         <div class="gai-search-history" id="gai-reminder-list"></div>
         <div class="gai-inline-feedback" id="gai-desktop-feedback"></div>
@@ -114,7 +126,7 @@ export function createGaiControlMarkup() {
       <section class="gai-card">
         <h3 ${t('Media & camera', '媒體與攝像頭')}>Media & camera</h3>
         <label><span ${t('Media engine', '媒體引擎')}>Media engine</span>
-          <select id="gai-media-provider"><option value="local">Local files / camera (free)</option><option value="stable-diffusion">Local Stable Diffusion (free)</option><option value="gemini" style="color:#ef4444">Gemini / Nano Banana (may charge)</option><option value="doubao" style="color:#ef4444">Doubao Seedream (may charge)</option><option value="openai-compatible" style="color:#ef4444">OpenAI-compatible image model (may charge)</option><option value="minimax" style="color:#ef4444">MiniMax (may charge)</option><option value="auto">Automatic</option></select>
+          <select id="gai-media-provider"><option value="local">Local files / camera (free)</option><option value="stable-diffusion">Local Stable Diffusion (free)</option><option value="gemini" style="color:#ef4444">Google Gemini (may charge)</option><option value="openai-compatible" style="color:#ef4444">OpenAI-compatible image model (may charge)</option></select>
         </label>
         <p class="gai-paid-note" ${t('Red cloud models may incur third-party charges. Local media remains the default.', '紅色雲端模型可能產生第三方費用；本機媒體仍為預設。')}>Red cloud models may incur third-party charges. Local media remains the default.</p>
         <div id="gai-media-openai-fields">
@@ -130,19 +142,9 @@ export function createGaiControlMarkup() {
           <label><span ${t('Image model', '圖像模型')}>Image model</span><input id="gai-gemini-image-model" type="text" placeholder="gemini-3.1-flash-image"></label>
           <label><span ${t('Video model', '影片模型')}>Video model</span><input id="gai-gemini-video-model" type="text" placeholder="veo-3.1-lite-generate-preview"></label>
         </div>
-        <div id="gai-media-doubao-fields">
-          <label><span>Doubao Ark API key</span><input id="gai-doubao-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
-          <label><span>Ark Base URL</span><input id="gai-doubao-baseurl" type="text" placeholder="https://ark.cn-beijing.volces.com/api/v3"></label>
-          <label><span ${t('Seedream model / endpoint ID', 'Seedream 模型／接入點 ID')}>Seedream model / endpoint ID</span><input id="gai-doubao-image-model" type="text" placeholder="Your exact model or ep-… ID"></label>
-        </div>
-        <label><span ${t('Video provider', '影片服務商')}>Video provider</span><select id="gai-video-provider"><option value="seedance" style="color:#ef4444">Doubao Seedance (may charge)</option><option value="gemini" style="color:#ef4444">Gemini Veo (paid-only API)</option></select></label>
-        <div id="gai-media-seedance-fields">
-          <label><span>Seedance API key</span><input id="gai-seedance-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key"></label>
-          <label><span>Seedance model / endpoint ID</span><input id="gai-seedance-model" type="text" placeholder="doubao-seedance-… or ep-…"></label>
-          <label><span>Seedance Base URL</span><input id="gai-seedance-baseurl" type="text" placeholder="https://ark.cn-beijing.volces.com/api/v3"></label>
-        </div>
+        <label><span ${t('Video provider', '影片服務商')}>Video provider</span><select id="gai-video-provider"><option value="gemini" style="color:#ef4444">Google Gemini Veo (paid-only API)</option></select></label>
         <div class="gai-actions"><button type="button" id="gai-save-media" ${t('Save media', '保存媒體')}>Save media</button><button type="button" id="gai-open-camera" ${t('Open camera now', '立即開啟攝像頭')}>Open camera now</button></div>
-        <div class="gai-links"><a href="https://chatgpt.com" target="_blank" rel="noreferrer">OpenAI / ChatGPT ↗</a><a href="https://aistudio.google.com" target="_blank" rel="noreferrer">Google AI Studio ↗</a><a href="https://platform.minimax.io" target="_blank" rel="noreferrer">MiniMax ↗</a></div>
+        <div class="gai-links"><a href="https://chatgpt.com" target="_blank" rel="noreferrer">OpenAI / ChatGPT ↗</a><a href="https://aistudio.google.com" target="_blank" rel="noreferrer">Google AI Studio ↗</a></div>
         <div class="gai-inline-feedback" id="gai-media-feedback"></div>
       </section>
     </div>
@@ -195,15 +197,20 @@ export function initGaiControlCenter() {
   const mediaOpenAIFields = document.getElementById('gai-media-openai-fields');
   const mediaSDFields = document.getElementById('gai-media-sd-fields');
   const mediaGeminiFields = document.getElementById('gai-media-gemini-fields');
-  const mediaDoubaoFields = document.getElementById('gai-media-doubao-fields');
-  const mediaSeedanceFields = document.getElementById('gai-media-seedance-fields');
   const useLocalAI = document.getElementById('gai-use-local-ai');
+  const mlxModel = document.getElementById('gai-mlx-model');
+  const installMlx = document.getElementById('gai-install-mlx');
+  const startMlx = document.getElementById('gai-start-mlx');
+  const stopMlx = document.getElementById('gai-stop-mlx');
   const wakeEnabled = document.getElementById('gai-wake-enabled');
   const wakeTrigger = document.getElementById('gai-wake-trigger');
   const doubleClap = document.getElementById('gai-double-clap');
+  const noiseSuppression = document.getElementById('gai-noise-suppression');
   const screenSharing = document.getElementById('gai-screen-sharing');
   const startupMusic = document.getElementById('gai-startup-music');
+  const launchAtLogin = document.getElementById('gai-launch-at-login');
   let recommendedLocalAI = null;
+  let mlxRefreshTimer = null;
 
   const setFeedback = (id, message, error = false) => {
     const el = document.getElementById(id);
@@ -241,8 +248,6 @@ export function initGaiControlCenter() {
     mediaOpenAIFields.hidden = mediaProvider.value !== 'openai-compatible';
     mediaSDFields.hidden = mediaProvider.value !== 'stable-diffusion';
     mediaGeminiFields.hidden = mediaProvider.value !== 'gemini' && videoProvider.value !== 'gemini';
-    mediaDoubaoFields.hidden = mediaProvider.value !== 'doubao';
-    mediaSeedanceFields.hidden = videoProvider.value !== 'seedance';
   };
   mediaProvider.addEventListener('change', syncMediaFields);
   videoProvider.addEventListener('change', syncMediaFields);
@@ -273,6 +278,7 @@ export function initGaiControlCenter() {
     openExternal(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
   }
   document.getElementById('gai-google-search')?.addEventListener('click', runGoogleSearch);
+  document.getElementById('gai-google-login')?.addEventListener('click', () => openExternal('https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fwww.google.com%2F'));
   document.getElementById('gai-google-query')?.addEventListener('keydown', event => { if (event.key === 'Enter') runGoogleSearch(); });
   document.getElementById('gai-clear-search-history')?.addEventListener('click', () => { localStorage.removeItem(SEARCH_HISTORY_KEY); renderSearchHistory(); });
   renderSearchHistory();
@@ -298,17 +304,28 @@ export function initGaiControlCenter() {
   async function detectLocalAI() {
     status(localStatus, 'checking');
     try {
-      const { localAI } = await json('/settings/local-ai');
+      const { localAI, mlxRuntime } = await json('/settings/local-ai');
       const available = (localAI?.providers || []).filter((service) => service.available);
       recommendedLocalAI = localAI?.recommended || null;
       useLocalAI.disabled = !recommendedLocalAI;
       const hardware = localAI?.hardware || {};
       const hardwareLabel = hardware.appleChip || `${hardware.cpu || hardware.arch || 'CPU'} · ${hardware.logicalCores || '?'} cores`;
       status(hardwareStatus, hardwareLabel, hardware.appleSilicon ? 'ok' : '');
-      status(localStatus, available.length ? available.map((service) => service.label).join(' + ') : 'not found', available.length ? 'ok' : '');
-      setFeedback('gai-ai-feedback', available.length
-        ? `${hardwareLabel} · ${available.map((service) => `${service.label}: ${(service.models || []).join(', ') || 'ready'}`).join(' · ')}${recommendedLocalAI ? ` · Recommended: ${recommendedLocalAI.label}` : ''}`
-        : (locale() === 'zh' ? '未發現 Ollama 或 LM Studio；離線引擎仍可使用。' : 'Ollama and LM Studio not detected; Offline Super remains available.'));
+      if (mlxRuntime?.recommendedModel && !mlxModel.dataset.userSelected) mlxModel.value = mlxRuntime.recommendedModel;
+      const mlxBusy = ['installing', 'starting'].includes(mlxRuntime?.state);
+      installMlx.disabled = mlxRuntime?.supported === false || mlxBusy;
+      startMlx.disabled = mlxRuntime?.supported === false || mlxRuntime?.installed !== true || mlxBusy || mlxRuntime?.state === 'running';
+      stopMlx.disabled = !['running', 'starting'].includes(mlxRuntime?.state) || mlxRuntime?.managed === false;
+      const localLabel = available.length ? available.map((service) => service.label).join(' + ') : (mlxBusy ? `MLX ${mlxRuntime.state}` : 'not found');
+      status(localStatus, localLabel, available.length || mlxRuntime?.state === 'running' ? 'ok' : (mlxRuntime?.state === 'error' ? 'warn' : ''));
+      const mlxDetail = mlxRuntime?.supported
+        ? `MLX ${mlxRuntime.state || 'stopped'} · ${mlxRuntime.model || mlxRuntime.recommendedModel}${mlxRuntime.lastError ? ` · ${mlxRuntime.lastError}` : ''}`
+        : 'Managed MLX requires Apple Silicon';
+      setFeedback('gai-ai-feedback', `${hardwareLabel} · ${mlxDetail}${available.length ? ` · ${available.map((service) => `${service.label}: ${(service.models || []).join(', ') || 'ready'}`).join(' · ')}` : ''}`);
+      if (mlxBusy) {
+        clearTimeout(mlxRefreshTimer);
+        mlxRefreshTimer = setTimeout(detectLocalAI, 2500);
+      }
     } catch (error) { status(localStatus, 'offline'); setFeedback('gai-ai-feedback', error.message, true); }
   }
 
@@ -324,6 +341,22 @@ export function initGaiControlCenter() {
     catch (error) { setFeedback('gai-ai-feedback', error.message, true); }
   });
   document.getElementById('gai-detect-local-ai')?.addEventListener('click', detectLocalAI);
+  mlxModel?.addEventListener('change', () => { mlxModel.dataset.userSelected = 'true'; });
+  installMlx?.addEventListener('click', async () => {
+    try {
+      await post('/settings/local-ai/mlx/install', { model: mlxModel.value });
+      setFeedback('gai-ai-feedback', locale() === 'zh' ? '正在安裝私人 MLX 執行環境並下載模型；完成後會自動啟動。' : 'Installing the private MLX runtime; the model will download and start automatically.');
+      await detectLocalAI();
+    } catch (error) { setFeedback('gai-ai-feedback', error.message, true); }
+  });
+  startMlx?.addEventListener('click', async () => {
+    try { await post('/settings/local-ai/mlx/start', { model: mlxModel.value }); await detectLocalAI(); }
+    catch (error) { setFeedback('gai-ai-feedback', error.message, true); }
+  });
+  stopMlx?.addEventListener('click', async () => {
+    try { await post('/settings/local-ai/mlx/stop', {}); await detectLocalAI(); }
+    catch (error) { setFeedback('gai-ai-feedback', error.message, true); }
+  });
   useLocalAI?.addEventListener('click', async () => {
     if (!recommendedLocalAI) return;
     try {
@@ -374,18 +407,10 @@ export function initGaiControlCenter() {
         geminiApiKey: document.getElementById('gai-gemini-key').value,
         geminiImageModel: document.getElementById('gai-gemini-image-model').value,
         geminiVideoModel: document.getElementById('gai-gemini-video-model').value,
-        doubaoApiKey: document.getElementById('gai-doubao-key').value,
-        doubaoBaseURL: document.getElementById('gai-doubao-baseurl').value,
-        doubaoImageModel: document.getElementById('gai-doubao-image-model').value,
         videoProvider: videoProvider.value,
-        seedanceApiKey: document.getElementById('gai-seedance-key').value,
-        seedanceModel: document.getElementById('gai-seedance-model').value,
-        seedanceBaseURL: document.getElementById('gai-seedance-baseurl').value,
       });
       document.getElementById('gai-media-key').value = '';
       document.getElementById('gai-gemini-key').value = '';
-      document.getElementById('gai-doubao-key').value = '';
-      document.getElementById('gai-seedance-key').value = '';
       setFeedback('gai-media-feedback', locale() === 'zh' ? '媒體引擎已保存並立即生效。' : 'Media engine saved and active.');
     } catch (error) { setFeedback('gai-media-feedback', error.message, true); }
   });
@@ -396,8 +421,10 @@ export function initGaiControlCenter() {
     wakeTrigger.value = preferences.wakeTrigger || 'phrase';
     doubleClap.checked = preferences.doubleClapEnabled === true || wakeTrigger.value === 'sound';
     doubleClap.disabled = wakeTrigger.value === 'sound';
+    noiseSuppression.checked = preferences.noiseSuppressionEnabled !== false;
     screenSharing.checked = preferences.screenSharingEnabled === true;
     startupMusic.checked = preferences.startupMusicEnabled !== false;
+    launchAtLogin.checked = preferences.launchAtLoginEnabled !== false;
     status(wakeStatus, wakeEnabled.checked ? (wakeTrigger.value === 'sound' ? 'sound ready' : 'phrase ready') : 'off', wakeEnabled.checked ? 'ok' : '');
     status(screenStatus, screenSharing.checked ? 'on' : 'off', screenSharing.checked ? 'ok' : '');
   }
@@ -421,6 +448,10 @@ export function initGaiControlCenter() {
     try { await desktop?.wake?.setConfig?.({ doubleClapEnabled: doubleClap.checked }); await saveDesktopPreference({ doubleClapEnabled: doubleClap.checked }); }
     catch (error) { setFeedback('gai-desktop-feedback', error.message, true); }
   });
+  noiseSuppression?.addEventListener('change', async () => {
+    try { await saveDesktopPreference({ noiseSuppressionEnabled: noiseSuppression.checked }); }
+    catch (error) { setFeedback('gai-desktop-feedback', error.message, true); }
+  });
   screenSharing?.addEventListener('change', async () => {
     try {
       const result = await desktop?.screen?.setEnabled?.(screenSharing.checked);
@@ -430,6 +461,10 @@ export function initGaiControlCenter() {
   });
   startupMusic?.addEventListener('change', async () => {
     try { await saveDesktopPreference({ startupMusicEnabled: startupMusic.checked }); }
+    catch (error) { setFeedback('gai-desktop-feedback', error.message, true); }
+  });
+  launchAtLogin?.addEventListener('change', async () => {
+    try { await saveDesktopPreference({ launchAtLoginEnabled: launchAtLogin.checked }); }
     catch (error) { setFeedback('gai-desktop-feedback', error.message, true); }
   });
   document.getElementById('gai-attach-screen')?.addEventListener('click', async () => {
@@ -452,7 +487,8 @@ export function initGaiControlCenter() {
       }
       for (const reminder of reminders.slice(0, 20)) {
         const row = document.createElement('div'); row.className = 'gai-history-item';
-        const copy = document.createElement('span'); copy.textContent = `${new Date(reminder.due_at).toLocaleString()} · ${reminder.task}`;
+        const recurrence = reminder.recurrence_type ? ` · ${reminder.recurrence_type}` : '';
+        const copy = document.createElement('span'); copy.textContent = `${new Date(reminder.due_at).toLocaleString()}${recurrence} · ${reminder.task}`;
         const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = '×'; cancel.title = 'Cancel';
         cancel.addEventListener('click', async () => { await post('/settings/reminders/cancel', { id: reminder.id }); await refreshReminders(); });
         row.append(copy, cancel); root.appendChild(row);
@@ -461,6 +497,19 @@ export function initGaiControlCenter() {
   }
 
   const reminderDue = document.getElementById('gai-reminder-due');
+  const reminderRecurrence = document.getElementById('gai-reminder-recurrence');
+  const reminderTime = document.getElementById('gai-reminder-time');
+  const reminderWeekday = document.getElementById('gai-reminder-weekday');
+  const reminderMonthday = document.getElementById('gai-reminder-monthday');
+  function syncReminderRecurrence() {
+    const kind = reminderRecurrence?.value || 'once';
+    document.getElementById('gai-reminder-once-row').hidden = kind !== 'once';
+    document.getElementById('gai-reminder-time-row').hidden = kind === 'once';
+    document.getElementById('gai-reminder-weekday-row').hidden = kind !== 'weekly';
+    document.getElementById('gai-reminder-monthday-row').hidden = kind !== 'monthly';
+  }
+  reminderRecurrence?.addEventListener('change', syncReminderRecurrence);
+  syncReminderRecurrence();
   if (reminderDue) {
     const suggested = new Date(Date.now() + 60 * 60 * 1000);
     suggested.setMinutes(Math.ceil(suggested.getMinutes() / 5) * 5, 0, 0);
@@ -471,7 +520,15 @@ export function initGaiControlCenter() {
   document.getElementById('gai-add-reminder')?.addEventListener('click', async () => {
     const taskInput = document.getElementById('gai-reminder-task');
     try {
-      await post('/settings/reminders', { task: taskInput.value, dueAt: new Date(reminderDue.value).toISOString() });
+      const recurrenceType = reminderRecurrence?.value || 'once';
+      const payload = { task: taskInput.value, recurrenceType };
+      if (recurrenceType === 'once') payload.dueAt = new Date(reminderDue.value).toISOString();
+      else {
+        payload.time = reminderTime.value;
+        if (recurrenceType === 'weekly') payload.weekday = Number(reminderWeekday.value);
+        if (recurrenceType === 'monthly') payload.dayOfMonth = Number(reminderMonthday.value);
+      }
+      await post('/settings/reminders', payload);
       taskInput.value = '';
       setFeedback('gai-desktop-feedback', locale() === 'zh' ? '時間線已建立；到時會自動處理、通知並跟進。' : 'Timeline created. GAI AI will act, notify and follow up automatically.');
       await refreshReminders();
@@ -480,21 +537,17 @@ export function initGaiControlCenter() {
   document.getElementById('gai-refresh-reminders')?.addEventListener('click', refreshReminders);
 
   Promise.allSettled([
-    json('/settings/map').then(({ map }) => { mapProvider.value = map?.provider || 'osm'; syncMapFields(); }),
+    json('/settings/map').then(({ map }) => { mapProvider.value = ['osm', 'google'].includes(map?.provider) ? map.provider : 'osm'; syncMapFields(); }),
     json('/settings/web-search').then(({ webSearch }) => { searchProvider.value = webSearch?.preferredEngine || 'auto'; }),
-    json('/settings/voice').then(({ voice }) => { voiceProvider.value = voice?.voiceProvider || 'local'; voiceLanguage.value = localStorage.getItem('bailongma-voice-lang') || 'multilingual'; }),
+    json('/settings/voice').then(() => { voiceProvider.value = 'local'; voiceLanguage.value = localStorage.getItem('bailongma-voice-lang') || 'multilingual'; }),
     json('/settings/media-provider').then(({ media }) => {
-      mediaProvider.value = media?.provider || 'local';
+      mediaProvider.value = ['local', 'stable-diffusion', 'gemini', 'openai-compatible'].includes(media?.provider) ? media.provider : 'local';
       document.getElementById('gai-media-baseurl').value = media?.openaiBaseURL || 'https://api.openai.com/v1';
       document.getElementById('gai-media-model').value = media?.openaiModel || 'gpt-image-1';
       document.getElementById('gai-media-sd-url').value = media?.stableDiffusionBaseURL || 'http://127.0.0.1:7860';
-      videoProvider.value = media?.videoProvider || 'seedance';
+      videoProvider.value = 'gemini';
       document.getElementById('gai-gemini-image-model').value = media?.geminiImageModel || 'gemini-3.1-flash-image';
       document.getElementById('gai-gemini-video-model').value = media?.geminiVideoModel || 'veo-3.1-lite-generate-preview';
-      document.getElementById('gai-doubao-baseurl').value = media?.doubaoBaseURL || 'https://ark.cn-beijing.volces.com/api/v3';
-      document.getElementById('gai-doubao-image-model').value = media?.doubaoImageModel || '';
-      document.getElementById('gai-seedance-model').value = media?.seedance?.model || '';
-      document.getElementById('gai-seedance-baseurl').value = media?.seedance?.baseURL || 'https://ark.cn-beijing.volces.com/api/v3';
       syncMediaFields();
     }),
   ]).catch(() => {});

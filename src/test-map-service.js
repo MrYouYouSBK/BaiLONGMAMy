@@ -6,7 +6,7 @@ import { wgs84ToGcj02 } from './ui/brain-ui/map-service.js'
 const settings = getMapServiceSettings()
 assert.equal(settings.provider, 'osm')
 assert.equal(settings.configured, true)
-assert.deepEqual(settings.providers.map(provider => provider.id), ['google', 'osm', 'amap'])
+assert.deepEqual(settings.providers.map(provider => provider.id), ['google', 'osm'])
 assert.equal(typeof settings.configured, 'boolean')
 assert.equal(typeof settings.keyConfigured, 'boolean')
 assert.equal(typeof settings.securityConfigured, 'boolean')

@@ -6,6 +6,7 @@ const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 
 const DEFAULT_REPOSITORY = 'MrYouYouSBK/GAI_Ai.My'
+const EXPECTED_BUNDLE_ID = 'com.mryouyousbk.gaiai'
 const MAX_REDIRECTS = 8
 
 function normalizeVersion(value = '') {
@@ -82,6 +83,55 @@ function findExtractedApp(root, depth = 0) {
 }
 
 function quoteShell(value) { return `'${String(value).replace(/'/g, `'"'"'`)}'` }
+
+function parseCodesignDetails(output = '') {
+  const text = String(output || '')
+  const teamIdentifier = text.match(/^TeamIdentifier=(.+)$/m)?.[1]?.trim() || ''
+  const authorities = [...text.matchAll(/^Authority=(.+)$/gm)].map(match => match[1].trim())
+  return { teamIdentifier: teamIdentifier === 'not set' ? '' : teamIdentifier, authorities }
+}
+
+function checked(command, args) {
+  const result = spawnSync(command, args, { encoding: 'utf8' })
+  if (result.status !== 0) {
+    throw new Error(`${path.basename(command)} verification failed: ${result.stderr || result.stdout || 'unknown error'}`)
+  }
+  return `${result.stdout || ''}\n${result.stderr || ''}`.trim()
+}
+
+function inspectMacSignature(appBundle) {
+  return parseCodesignDetails(checked('/usr/bin/codesign', ['-dvvv', appBundle]))
+}
+
+function verifyTrustedMacUpdate(sourceBundle, currentBundle = null) {
+  checked('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', sourceBundle])
+  const signature = inspectMacSignature(sourceBundle)
+  if (!signature.authorities.some(authority => authority.startsWith('Developer ID Application:'))) {
+    throw new Error('Downloaded update is not signed with an Apple Developer ID Application certificate')
+  }
+  if (!signature.teamIdentifier) throw new Error('Downloaded update signature has no Apple TeamIdentifier')
+
+  const bundleId = checked('/usr/bin/plutil', ['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', path.join(sourceBundle, 'Contents', 'Info.plist')]).trim()
+  if (bundleId !== EXPECTED_BUNDLE_ID) throw new Error(`Downloaded update has unexpected bundle identifier: ${bundleId || 'missing'}`)
+
+  // Do not call xcrun/stapler on an end-user machine: clean Macs may not have
+  // Xcode Command Line Tools.  CI validates the stapled ticket before release;
+  // Gatekeeper's built-in assessment verifies the signed/notarized bundle here.
+  checked('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', sourceBundle])
+
+  if (currentBundle) {
+    try {
+      const current = inspectMacSignature(currentBundle)
+      if (current.teamIdentifier && current.teamIdentifier !== signature.teamIdentifier) {
+        throw new Error(`Downloaded update is signed by a different Apple team (${signature.teamIdentifier})`)
+      }
+    } catch (error) {
+      if (/different Apple team/.test(error?.message || '')) throw error
+      // The first trusted upgrade can originate from the legacy unsigned 3.2 build.
+    }
+  }
+  return { bundleId, teamIdentifier: signature.teamIdentifier }
+}
 
 function requestBuffer(url, { headers = {}, redirects = 0, onProgress } = {}) {
   if (redirects > MAX_REDIRECTS) return Promise.reject(new Error('Too many download redirects'))
@@ -208,6 +258,7 @@ class CommunityMacUpdater extends EventEmitter {
     if (result.status !== 0) throw new Error(`Could not extract update: ${result.stderr || result.stdout || 'ditto failed'}`)
     const sourceBundle = findExtractedApp(stageDir)
     if (!sourceBundle) throw new Error('The verified update archive does not contain GAI AI.app')
+    verifyTrustedMacUpdate(sourceBundle, currentBundle)
     return { currentBundle, sourceBundle, stageDir }
   }
 
@@ -216,7 +267,7 @@ class CommunityMacUpdater extends EventEmitter {
     const { currentBundle, sourceBundle, stageDir } = this.prepareInstall()
     const backupBundle = `${currentBundle}.gai-backup-${Date.now()}`
     const scriptPath = path.join(this.cacheDir, 'install-verified-update.sh')
-    const script = `#!/bin/sh\nset -u\npid=${process.pid}\nwhile kill -0 "$pid" 2>/dev/null; do sleep 0.2; done\ntarget=${quoteShell(currentBundle)}\nsource_app=${quoteShell(sourceBundle)}\nbackup=${quoteShell(backupBundle)}\nstage=${quoteShell(stageDir)}\nif ! mv "$target" "$backup"; then exit 20; fi\nif /usr/bin/ditto "$source_app" "$target"; then\n  /usr/bin/xattr -dr com.apple.quarantine "$target" 2>/dev/null || true\n  /usr/bin/open "$target"\n  /bin/rm -rf "$backup" "$stage"\n  exit 0\nfi\n/bin/rm -rf "$target"\nmv "$backup" "$target"\n/usr/bin/open "$target"\nexit 21\n`
+    const script = `#!/bin/sh\nset -u\npid=${process.pid}\nwhile kill -0 "$pid" 2>/dev/null; do sleep 0.2; done\ntarget=${quoteShell(currentBundle)}\nsource_app=${quoteShell(sourceBundle)}\nbackup=${quoteShell(backupBundle)}\nstage=${quoteShell(stageDir)}\nif ! mv "$target" "$backup"; then exit 20; fi\nif /usr/bin/ditto "$source_app" "$target" && /usr/bin/open "$target"; then\n  /bin/rm -rf "$backup" "$stage"\n  exit 0\nfi\n/bin/rm -rf "$target"\nmv "$backup" "$target"\n/usr/bin/open "$target"\nexit 21\n`
     fs.writeFileSync(scriptPath, script, { mode: 0o700 })
     const child = spawn('/bin/sh', [scriptPath], { detached: true, stdio: 'ignore' })
     child.unref()
@@ -228,4 +279,4 @@ class CommunityMacUpdater extends EventEmitter {
   quitAndInstall() { this.spawnInstaller(); this.app.quit() }
 }
 
-module.exports = { CommunityMacUpdater, compareVersions, findAppBundle, normalizeVersion, parseChecksumFile, releaseVersion, selectReleaseAssets, sha256File }
+module.exports = { CommunityMacUpdater, compareVersions, findAppBundle, normalizeVersion, parseChecksumFile, parseCodesignDetails, releaseVersion, selectReleaseAssets, sha256File, verifyTrustedMacUpdate }

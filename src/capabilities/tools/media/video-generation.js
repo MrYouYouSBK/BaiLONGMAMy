@@ -460,9 +460,10 @@ export function resumePendingVideoJobs() {
   if (fresh.length !== list.length) writePending(fresh)
   if (!fresh.length) return
 
-  const seedance = getSeedanceConfig()
   const media = getMediaProviderRuntimeConfig()
-  const resumable = fresh.filter(entry => entry.provider === 'gemini' ? !!media.geminiApiKey : seedance.configured)
+  // GAI AI 3.3 only resumes overseas Gemini jobs.  Legacy Seedance entries are
+  // removed instead of silently contacting their former mainland endpoint.
+  const resumable = fresh.filter(entry => entry.provider === 'gemini' && !!media.geminiApiKey)
   if (resumable.length !== fresh.length) writePending(resumable)
   if (!resumable.length) return
 
@@ -473,9 +474,7 @@ export function resumePendingVideoJobs() {
         jobId: e.jobId, mode: e.mode, prompt: e.prompt,
         ratio: e.ratio, resolution: e.resolution, duration: e.duration, status: 'running',
       })
-      const loop = e.provider === 'gemini'
-        ? geminiPollLoop({ taskId: e.taskId, jobId: e.jobId, apiKey: media.geminiApiKey, prompt: e.prompt, mode: e.mode, ratio: e.ratio, resolution: e.resolution, duration: e.duration })
-        : seedancePollLoop({ taskId: e.taskId, jobId: e.jobId, baseURL: e.baseURL || seedance.baseURL, apiKey: seedance.apiKey, prompt: e.prompt, mode: e.mode, ratio: e.ratio, resolution: e.resolution, duration: e.duration })
+      const loop = geminiPollLoop({ taskId: e.taskId, jobId: e.jobId, apiKey: media.geminiApiKey, prompt: e.prompt, mode: e.mode, ratio: e.ratio, resolution: e.resolution, duration: e.duration })
       loop.catch(() => removePending(e.taskId))
     }
     console.log(`[aivideo] 已恢复 ${resumable.length} 个未完成的视频生成任务`)

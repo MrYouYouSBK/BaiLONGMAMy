@@ -2487,7 +2487,7 @@ function initTTSSettings() {
     setTimeout(() => { el.textContent = ""; el.className = "settings-feedback"; }, 3000);
   }
 
-  function refreshConfigSummary({ llm, minimax }) {
+  function refreshConfigSummary({ llm }) {
     const cfgLlm = document.getElementById("settings-cfg-llm");
     const cfgLlmDot = document.getElementById("settings-cfg-llm-dot");
     const cfgMedia = document.getElementById("settings-cfg-media");
@@ -2498,10 +2498,10 @@ function initTTSSettings() {
       cfgLlmDot.className = `settings-config-dot ${llm.activated ? "active" : "inactive"}`;
       cfgLlmDot.title = llm.activated ? "Running" : "Inactive";
     }
-    if (cfgMedia) cfgMedia.textContent = `minimax · ${minimax.configured ? "configured" : "not configured"}`;
+    if (cfgMedia) cfgMedia.textContent = "local / overseas only";
     if (cfgMediaDot) {
       cfgMediaDot.textContent = "●";
-      cfgMediaDot.className = `settings-config-dot ${minimax.configured ? "active" : "inactive"}`;
+      cfgMediaDot.className = "settings-config-dot active";
     }
   }
 
@@ -2541,14 +2541,16 @@ function initTTSSettings() {
 
   function populateProviderSelect(providers, current) {
     if (!providerSelect || !providers) return;
-    const selected = current || providerSelect.value || "auto";
-    const options = [`<option value="auto">Auto-detect</option>`]
-      .concat(Object.entries(providers).map(([id, provider]) => {
+    const allowed = new Set(["offline", "codex", "openai", "custom"]);
+    const selected = allowed.has(current) ? current : "offline";
+    const options = Object.entries(providers)
+      .filter(([id]) => allowed.has(id))
+      .map(([id, provider]) => {
         const label = provider.label || id;
         return `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`;
-      }));
+      });
     providerSelect.innerHTML = options.join("");
-    providerSelect.value = providers[selected] || selected === "auto" ? selected : "auto";
+    providerSelect.value = selected;
   }
 
   function setLlmKeyVisible(visible) {
@@ -2628,13 +2630,13 @@ function initTTSSettings() {
   async function loadSettings() {
     try {
       const data = await fetch(`${API}/settings`).then(r => r.json());
-      const { llm, minimax, providers } = data;
+      const { llm, providers } = data;
       if (providers) cachedProviders = providers;
       cachedLlm = llm;
       if (agentNameInput) agentNameInput.value = data.agent_name || agentName || DEFAULT_AGENT_NAME;
-      refreshConfigSummary({ llm, minimax });
-      populateProviderSelect(providers, llm.provider || "auto");
-      if (providerSelect && llm.provider) providerSelect.value = llm.provider;
+      refreshConfigSummary({ llm });
+      populateProviderSelect(providers, llm.provider || "offline");
+      if (providerSelect) providerSelect.value = ["offline", "codex", "openai", "custom"].includes(llm.provider) ? llm.provider : "offline";
       applyCustomProviderUI(llm);
       if (typeof llm.temperature === "number" && tempSlider) {
         tempSlider.value = String(llm.temperature);
@@ -3259,19 +3261,21 @@ function initTTSSettings() {
     await loadMicrophoneDevices();
     await loadOutputDevices();
 
-    let savedProvider = localStorage.getItem(VOICE_PROVIDER_KEY) || "local";
+    let savedProvider = "local";
     try {
       const resp = await fetch("http://127.0.0.1:3721/settings/voice");
       const data = await resp.json().catch(() => ({}));
-      if (resp.ok && data?.voice?.voiceProvider) {
-        savedProvider = data.voice.voiceProvider;
-        localStorage.setItem(VOICE_PROVIDER_KEY, savedProvider);
+      if (resp.ok && data?.voice?.voiceProvider && data.voice.voiceProvider !== "local") {
+        fetch("http://127.0.0.1:3721/settings/voice", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voiceProvider: "local" }),
+        }).catch(() => {});
       }
       const savedVolcAsrKey = data?.voice?.volcAsrApiKey?.value;
       if (volcAsrKeyInput) volcAsrKeyInput.value = typeof savedVolcAsrKey === "string" ? savedVolcAsrKey : "";
     } catch {}
-    if (voiceProviderSelect) voiceProviderSelect.value = savedProvider;
-    applyVoiceProviderUI(savedProvider);
+    localStorage.setItem(VOICE_PROVIDER_KEY, "local");
+    if (voiceProviderSelect) voiceProviderSelect.value = "local";
+    applyVoiceProviderUI("local");
   }
 
   if (voiceThreshSlider && voiceThreshVal) {

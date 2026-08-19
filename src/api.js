@@ -159,9 +159,12 @@ function attachCloudASR() {
           if (msg.type !== 'config') return
           let rawCfg = {}
           try { rawCfg = JSON.parse(fs.readFileSync(paths.configFile, 'utf-8'))?.voice || {} } catch {}
-          const provider = rawCfg.voiceProvider || msg.provider || 'aliyun'
+          // GAI AI 3.3 is local-first: legacy mainland-cloud credentials remain
+          // readable for migration, but microphone audio is routed only to the
+          // native macOS/Windows recognizer from the desktop UI.
+          const provider = 'local'
           session = createCloudASRSession(
-            { provider, lang: msg.lang || 'zh', ...rawCfg },
+            { ...rawCfg, provider, voiceProvider: provider, lang: msg.lang || 'multilingual' },
             (text, isFinal, seg) => {
               try { ws.send(JSON.stringify({ type: 'transcript', text, is_final: isFinal, seg })) } catch {}
             },

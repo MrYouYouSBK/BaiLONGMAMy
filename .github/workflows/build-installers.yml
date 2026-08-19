@@ -42,7 +42,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Verify GAI AI 3.2 runtime
+      - name: Verify GAI AI 3.3 runtime
         run: |
           npm run test:offline
           npm run test:config-upgrade
@@ -98,7 +98,7 @@ jobs:
           if-no-files-found: error
 
   macos:
-    name: macOS ${{ matrix.arch }} DMG
+    name: macOS ${{ matrix.arch }} trusted DMG
     needs:
       - release-safety
       - unit-tests
@@ -112,7 +112,11 @@ jobs:
             runner: macos-15
     runs-on: ${{ matrix.runner }}
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GAI_REQUIRE_MAC_SIGNING: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'true' || 'false' }}
+      CSC_LINK: ${{ secrets.MAC_CERTIFICATE_BASE64 }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -123,13 +127,43 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Require Apple trust credentials for publishable builds
+        if: env.GAI_REQUIRE_MAC_SIGNING == 'true'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        shell: bash
+        run: |
+          missing=()
+          [[ -n "$CSC_LINK" ]] || missing+=(MAC_CERTIFICATE_BASE64)
+          [[ -n "$CSC_KEY_PASSWORD" ]] || missing+=(MAC_CERTIFICATE_PASSWORD)
+          [[ -n "$APPLE_API_KEY_P8" ]] || missing+=(APPLE_API_KEY_P8)
+          [[ -n "$APPLE_API_KEY_ID" ]] || missing+=(APPLE_API_KEY_ID)
+          [[ -n "$APPLE_API_ISSUER" ]] || missing+=(APPLE_API_ISSUER_ID)
+          if (( ${#missing[@]} )); then
+            echo "Refusing to publish an unsigned macOS build. Missing GitHub Secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+          key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "$APPLE_API_KEY_P8" > "$key_path"
+          chmod 600 "$key_path"
+          echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
+          echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> "$GITHUB_ENV"
+
+      - name: Disable signing only for non-publishable PR smoke builds
+        if: env.GAI_REQUIRE_MAC_SIGNING != 'true'
+        run: echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build macOS DMG
         run: npm run build:mac:${{ matrix.arch }}
 
-      - name: Verify macOS architecture and launch
+      - name: Notarize and staple publishable DMG
+        if: env.GAI_REQUIRE_MAC_SIGNING == 'true'
+        run: npm run notarize:mac -- ${{ matrix.arch }}
+
+      - name: Verify architecture, Developer ID, Gatekeeper and launch
         run: npm run verify:mac -- ${{ matrix.arch }}
 
       - name: Preserve architecture-specific update metadata
@@ -187,11 +221,11 @@ jobs:
           release_tag="${{ steps.version.outputs.tag }}"
           if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$release_tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$release_tag" --notes-file RELEASE_NOTES_3.2.md --title "GAI AI 3.2.0" --repo "$GITHUB_REPOSITORY"
+            gh release edit "$release_tag" --notes-file RELEASE_NOTES_3.3.md --title "GAI AI 3.3.0" --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$release_tag" release-assets/* \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --notes-file RELEASE_NOTES_3.2.md \
-              --title "GAI AI 3.2.0"
+              --notes-file RELEASE_NOTES_3.3.md \
+              --title "GAI AI 3.3.0"
           fi

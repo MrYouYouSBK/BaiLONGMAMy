@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { discoverLocalAI } from './local-ai-discovery.js'
+import { discoverLocalAI, recommendMlxModel } from './local-ai-discovery.js'
 
 function localURL(port, pathSegments) {
   const url = new URL('http://localhost')
@@ -33,6 +33,10 @@ assert.equal(localAI.hardware.appleChip, 'Apple M5 Max')
 assert.equal(localAI.hardware.inferenceThreads, 14)
 assert.equal(localAI.recommended.id, 'mlx')
 assert.equal(localAI.recommended.model, 'mlx-community/Qwen3-8B')
+assert.equal(localAI.mlxRecommendation, 'mlx-community/Qwen3-14B-4bit')
+assert.equal(recommendMlxModel(8), 'mlx-community/Llama-3.2-3B-Instruct-4bit')
+assert.equal(recommendMlxModel(16), 'mlx-community/Qwen3-8B-4bit')
+assert.equal(recommendMlxModel(32), 'mlx-community/Qwen3-14B-4bit')
 assert.deepEqual(localAI.providers.find(item => item.id === 'lmstudio').models, [])
 
 console.log('GAI AI local-model discovery checks passed')

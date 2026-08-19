@@ -1,4 +1,4 @@
-import { getAmapSecurityCode, getMapRuntimeConfig } from '../../map-service.js'
+import { getMapRuntimeConfig } from '../../map-service.js'
 import { jsonResponse } from '../utils.js'
 
 const AMAP_REST_BASE = 'https://restapi.amap.com/'
@@ -32,27 +32,9 @@ export async function handleMapRoutes(req, res, url, { requireLocalOrToken } = {
 
   if (req.method === 'GET' && url.pathname.startsWith('/_AMapService/')) {
     if (!requireLocalOrToken?.(req, res, url)) return true
-    const securityCode = getAmapSecurityCode()
-    if (!securityCode) {
-      jsonResponse(res, 503, { ok: false, error: 'map_service_not_configured' })
-      return true
-    }
-
-    let target
-    try {
-      target = buildAmapProxyTarget(url, securityCode)
-    } catch {
-      jsonResponse(res, 400, { ok: false, error: 'invalid_map_proxy_path' })
-      return true
-    }
-
-    const upstream = await fetch(target, {
-      headers: { 'User-Agent': 'GAI-AI/3.0 map-service' },
-      signal: AbortSignal.timeout(12_000),
-    })
-    copyProxyHeaders(upstream, res)
-    res.writeHead(upstream.status)
-    res.end(Buffer.from(await upstream.arrayBuffer()))
+    // Legacy endpoint intentionally cannot make an upstream request in the
+    // local/overseas-only desktop profile.
+    jsonResponse(res, 410, { ok: false, error: 'map_provider_disabled' })
     return true
   }
 

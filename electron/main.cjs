@@ -15,7 +15,7 @@ if (IS_WIN) {
   } catch (_) {}
 }
 
-const { app, BrowserWindow, shell, dialog, Menu, ipcMain, Tray, nativeImage, clipboard, systemPreferences, desktopCapturer, Notification } = require('electron')
+const { app, BrowserWindow, shell, dialog, Menu, ipcMain, Tray, nativeImage, clipboard, systemPreferences, desktopCapturer, Notification, powerMonitor } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -29,7 +29,11 @@ const wakeWord = require('./wake-word.cjs')
 const devLight = require('./dev-board-light.cjs')
 
 const IS_DEV = !app.isPackaged
-const WINDOWS_APP_USER_MODEL_ID = 'com.xiaoyuanda.bailongma'
+const WINDOWS_APP_USER_MODEL_ID = 'com.mryouyousbk.gaiai'
+const STARTED_IN_BACKGROUND = process.argv.includes('--background') || (() => {
+  try { return IS_MAC && app.getLoginItemSettings().wasOpenedAsHidden === true }
+  catch { return false }
+})()
 
 function resolvePortableRoot() {
   if (IS_DEV) return null
@@ -82,6 +86,8 @@ const DEFAULT_DESKTOP_PREFS = {
   wakeEnabled: true,
   wakeTrigger: 'phrase',
   doubleClapEnabled: false,
+  noiseSuppressionEnabled: true,
+  launchAtLoginEnabled: true,
 }
 
 function readDesktopPreferences() {
@@ -101,12 +107,27 @@ function writeDesktopPreferences(next = {}) {
   return { ...desktopPreferences }
 }
 
+function applyLaunchAtLoginPreference(enabled) {
+  if (IS_DEV || !["darwin", "win32"].includes(PLATFORM)) return false
+  try {
+    const openAtLogin = enabled !== false
+    app.setLoginItemSettings(IS_MAC
+      ? { openAtLogin, openAsHidden: openAtLogin }
+      : { openAtLogin, path: process.execPath, args: openAtLogin ? ['--background'] : [] })
+    return true
+  } catch (error) {
+    console.warn('[startup] could not update launch-at-login setting:', error?.message || error)
+    return false
+  }
+}
+
 function wakeRuntimeConfig() {
   return {
     enabled: desktopPreferences.wakeEnabled !== false,
     trigger: desktopPreferences.wakeTrigger || 'phrase',
     doubleClapEnabled: desktopPreferences.doubleClapEnabled === true,
     conversationActive: wakeConversationActive,
+    noiseSuppressionEnabled: desktopPreferences.noiseSuppressionEnabled !== false,
     ...wakeWord.getStatus(),
   }
 }
@@ -595,6 +616,7 @@ async function createWindow({ loadStartup = true } = {}) {
     backgroundColor: '#0b0b0e',
     title: 'GAI AI',
     icon: getAppIconPath(),
+    show: !STARTED_IN_BACKGROUND,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -1245,6 +1267,16 @@ function createWakeProbeWindow() {
   wakeProbeWindow.on('closed', () => { wakeProbeWindow = null })
 }
 
+function recoverWakeProbeAfterSystemResume() {
+  if (desktopPreferences.wakeEnabled === false) return
+  const timer = setTimeout(() => {
+    if (wakeConversationActive) return broadcastWakeConfig()
+    if (!wakeProbeWindow || wakeProbeWindow.isDestroyed()) createWakeProbeWindow()
+    else wakeProbeWindow.webContents.reloadIgnoringCache()
+  }, 750)
+  timer.unref?.()
+}
+
 ipcMain.on('wake:pcm', (_e, buffer) => {
   if (!buffer) return
   wakeWord.feedPcm(buffer) // 原样转发 ArrayBuffer 给 KWS 子进程
@@ -1406,11 +1438,15 @@ ipcMain.handle('devices:request-access', async (_event, kind) => {
 ipcMain.handle('desktop-preferences:get', () => ({ ...desktopPreferences }))
 ipcMain.handle('desktop-preferences:set', (_event, updates = {}) => {
   const allowed = {}
-  for (const key of ['screenSharingEnabled', 'startupMusicEnabled', 'wakeEnabled', 'wakeTrigger', 'doubleClapEnabled']) {
+  for (const key of ['screenSharingEnabled', 'startupMusicEnabled', 'wakeEnabled', 'wakeTrigger', 'doubleClapEnabled', 'noiseSuppressionEnabled', 'launchAtLoginEnabled']) {
     if (Object.prototype.hasOwnProperty.call(updates, key)) allowed[key] = updates[key]
   }
   const prefs = writeDesktopPreferences(allowed)
+  if (Object.prototype.hasOwnProperty.call(allowed, 'launchAtLoginEnabled')) applyLaunchAtLoginPreference(prefs.launchAtLoginEnabled)
   wakeWord.setConfig({ enabled: prefs.wakeEnabled, trigger: prefs.wakeTrigger, doubleClapEnabled: prefs.doubleClapEnabled })
+  if (Object.prototype.hasOwnProperty.call(allowed, 'noiseSuppressionEnabled') && wakeProbeWindow && !wakeProbeWindow.isDestroyed()) {
+    wakeProbeWindow.webContents.reloadIgnoringCache()
+  }
   broadcastWakeConfig()
   return prefs
 })
@@ -1564,6 +1600,7 @@ app.on('before-quit', () => {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
+  applyLaunchAtLoginPreference(desktopPreferences.launchAtLoginEnabled)
   await createWindow({ loadStartup: true })
 
   try {
@@ -1601,6 +1638,8 @@ app.whenReady().then(async () => {
   }
   setupTray()
   setupAutoUpdater()
+  powerMonitor.on('resume', recoverWakeProbeAfterSystemResume)
+  powerMonitor.on('unlock-screen', recoverWakeProbeAfterSystemResume)
 
   // 语音唤醒:初始化主进程 KWS 引擎,成功则开启隐藏"耳朵"窗口常驻监听。
   // 失败(如缺模型/原生模块)不影响 app 其余功能 —— initWakeWord 内部已吞错。

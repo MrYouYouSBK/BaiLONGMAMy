@@ -1,12 +1,12 @@
 {
   "name": "gai-ai",
   "productName": "GAI AI",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "A multilingual, local-first personal AI for Apple Silicon, Windows and macOS",
   "type": "module",
   "main": "electron/main.cjs",
   "author": {
-    "name": "xiaoyuanda666-ship-it"
+    "name": "MrYouYouSBK"
   },
   "contributors": [
     {
@@ -31,6 +31,7 @@
     "build:mac": "node scripts/build-mac.mjs",
     "build:mac:x64": "node scripts/build-mac.mjs x64",
     "build:mac:arm64": "node scripts/build-mac.mjs arm64",
+    "notarize:mac": "node scripts/notarize-mac-artifacts.mjs",
     "check:release-safety": "node scripts/check-release-safety.mjs",
     "publish": "node scripts/prebuild-clean.mjs && node scripts/build-macos-speech.mjs && node ./node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3 -v 33.4.11 && node ./node_modules/electron-builder/cli.js --publish always",
     "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
@@ -86,7 +87,7 @@
     "playwright": "^1.59.1"
   },
   "build": {
-    "appId": "com.mryouyousbk.bailongmamy",
+    "appId": "com.mryouyousbk.gaiai",
     "productName": "GAI AI",
     "artifactName": "GAI-AI-Setup-${version}.${ext}",
     "npmRebuild": false,
@@ -172,6 +173,10 @@
     },
     "mac": {
       "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "target": [
         "dmg",
         "zip"

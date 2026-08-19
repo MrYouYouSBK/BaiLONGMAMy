@@ -235,12 +235,9 @@ const createSettingsModal = () => `
             <div class="settings-row">
               <label class="settings-label" for="settings-provider-select">提供商</label>
               <select class="settings-select" id="settings-provider-select">
-                <option value="auto">自动识别</option>
                 <option value="offline">GAI Offline Super（无需 Key）</option>
                 <option value="codex">OpenAI Codex（ChatGPT 登录，无需 API Key）</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="minimax">MiniMax</option>
-                <option value="mimo">小米 MiMo</option>
+                <option value="openai">OpenAI API</option>
                 <option value="custom">自定义端点（本地/其他）</option>
               </select>
             </div>
@@ -312,17 +309,7 @@ const createSettingsModal = () => `
               <span class="settings-config-dot" id="settings-cfg-media-dot"></span>
             </div>
           </div>
-          <div class="settings-section">
-            <div class="settings-section-label">MiniMax API Key</div>
-            <div class="settings-row">
-              <label class="settings-label" for="settings-minimax-key">API Key</label>
-              <input class="settings-input" id="settings-minimax-key" type="password" placeholder="填入 MiniMax API Key…" autocomplete="new-password">
-            </div>
-            <div class="settings-row-action">
-              <button class="settings-save-btn" id="settings-save-minimax" type="button">保存</button>
-              <span class="settings-feedback" id="settings-minimax-feedback"></span>
-            </div>
-          </div>
+          <div class="settings-section"><p class="settings-hint">媒體服務僅使用本機、OpenAI 相容或 Google Gemini；請在 GAI Control Center 管理。</p></div>
         </div>
 
         <!-- ── 社交媒体 tab ── -->
@@ -404,7 +391,7 @@ const createSettingsModal = () => `
         <div class="settings-tab" data-tab="voice">
           <div class="settings-section">
             <div class="settings-section-label">语音识别配置</div>
-            <div class="settings-row">
+            <div class="settings-row" style="display:none;">
               <label class="settings-label" for="voice-auto-key">粘贴 Key 自动识别厂商</label>
               <input class="settings-input" type="password" id="voice-auto-key" placeholder="阿里云 / 腾讯云 / 讯飞 / 火山豆包 ASR Key">
               <span id="voice-auto-detect" style="color:var(--cool);font-size:12px;min-width:86px;text-align:right;"></span>
@@ -413,13 +400,9 @@ const createSettingsModal = () => `
               <label class="settings-label" for="voice-provider-select">服务商</label>
               <select class="settings-select" id="voice-provider-select">
                 <option value="local">Windows / macOS 本機識別（默認）</option>
-                <option value="aliyun">阿里云百炼（推荐）</option>
-                <option value="volcengine">火山引擎豆包 ASR</option>
-                <option value="tencent">腾讯云 ASR</option>
-                <option value="xunfei">科大讯飞 RTASR</option>
               </select>
             </div>
-            <div id="voice-cred-aliyun">
+            <div id="voice-cred-aliyun" style="display:none;">
               <div class="settings-row">
                 <label class="settings-label" for="voice-aliyun-key">阿里云 API Key</label>
                 <input class="settings-input" type="password" id="voice-aliyun-key" placeholder="留空则不修改">
@@ -477,11 +460,8 @@ const createSettingsModal = () => `
               <label class="settings-label" for="tts-provider-select">服务商</label>
               <select class="settings-select" id="tts-provider-select">
                 <option value="system">系統內建語音（免費／預設）</option>
-                <option value="doubao" style="color:#ef4444">豆包（雲端，可能收費）</option>
                 <option value="openai" style="color:#ef4444">OpenAI TTS（雲端，可能收費）</option>
                 <option value="elevenlabs" style="color:#ef4444">ElevenLabs（雲端，可能收費）</option>
-                <option value="volcano" style="color:#ef4444">火山引擎（雲端，可能收費）</option>
-                <option value="minimax" style="color:#ef4444">MiniMax（雲端，可能收費）</option>
               </select>
             </div>
             <p class="settings-hint" style="color:#ef4444">紅色選項可能產生第三方費用；GAI AI 不會在未選擇及未配置時呼叫付費 TTS。</p>
@@ -776,10 +756,9 @@ const createSettingsModal = () => `
               <select class="settings-select" id="settings-map-provider">
                 <option value="osm">OpenStreetMap（无需 Key）</option>
                 <option value="google">Google Maps</option>
-                <option value="amap">高德地图 JS API 2.0</option>
               </select>
             </div>
-            <div class="settings-row">
+            <div class="settings-row" style="display:none;">
               <label class="settings-label" for="settings-amap-key">Web 端 Key</label>
               <input class="settings-input" id="settings-amap-key" type="password" placeholder="留空保持现有 Key 不变" autocomplete="new-password" spellcheck="false">
             </div>
@@ -787,11 +766,10 @@ const createSettingsModal = () => `
               <label class="settings-label" for="settings-amap-security">安全密钥</label>
               <input class="settings-input" id="settings-amap-security" type="password" placeholder="securityJsCode，留空保持不变" autocomplete="new-password" spellcheck="false">
             </div>
-            <p class="settings-hint">请在高德开放平台创建“Web端（JS API）”Key。安全密钥只在本地代理请求中使用，地图页面无法读取其明文。</p>
+            <p class="settings-hint">OpenStreetMap 无需 Key；Google Maps Key 可在 Google Cloud 頁面建立。</p>
             <div class="settings-row-action" style="gap:8px;flex-wrap:wrap;">
               <button class="settings-save-btn" id="settings-save-map" type="button">保存地图配置</button>
               <button class="settings-save-btn" id="settings-clear-map" type="button" style="width:auto;padding:0 14px;background:transparent;border:1px solid var(--line);color:var(--ink2);">清除</button>
-              <a href="https://console.amap.com/dev/key/app" target="_blank" rel="noreferrer" class="settings-map-link">申请高德 Key ↗</a>
               <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noreferrer" class="settings-map-link">申请 Google Key ↗</a>
               <span class="settings-feedback" id="settings-map-feedback"></span>
             </div>
