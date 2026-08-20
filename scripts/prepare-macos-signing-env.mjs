@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { appendFileSync, chmodSync, mkdirSync, writeFileSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { createPrivateKey, randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -15,6 +15,111 @@ const REQUIRED_FIELDS = [
 
 function clean(value) {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function unwrapSecretValue(value) {
+  let unwrapped = clean(value).replace(/^\uFEFF/, '')
+  const wrappers = [
+    ['`', '`'],
+    ['"', '"'],
+    ["'", "'"],
+  ]
+  for (const [start, end] of wrappers) {
+    if (unwrapped.startsWith(start) && unwrapped.endsWith(end) && unwrapped.length > 1) {
+      unwrapped = unwrapped.slice(start.length, -end.length).trim()
+      break
+    }
+  }
+  return unwrapped
+}
+
+function compactBase64(value) {
+  let compact = unwrapSecretValue(value)
+    .replace(/^data:[^,]*;base64,/i, '')
+    .replace(/^base64\s*[:=]\s*/i, '')
+    .replace(/\\r\\n|\\n|\\r/g, '')
+    .replace(/\s+/g, '')
+    .replaceAll('-', '+')
+    .replaceAll('_', '/')
+
+  if (!compact || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.length % 4 === 1) {
+    return ''
+  }
+  compact = compact.replace(/=+$/, '')
+  return compact.padEnd(Math.ceil(compact.length / 4) * 4, '=')
+}
+
+function decodeBase64(value, label) {
+  const compact = compactBase64(value)
+  if (!compact) throw new Error(`${label} is not valid Base64 or Base64URL`)
+  const decoded = Buffer.from(compact, 'base64')
+  if (decoded.length === 0) throw new Error(`${label} decoded to an empty value`)
+  return decoded
+}
+
+function normalizePem(value) {
+  const normalized = unwrapSecretValue(value)
+    .replaceAll('\\r\\n', '\n')
+    .replaceAll('\\n', '\n')
+    .replaceAll('\\r', '\n')
+  const match = normalized.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/)
+  if (!match) return ''
+  const body = compactBase64(match[1])
+  if (!body) return ''
+  const lines = body.match(/.{1,64}/g) || []
+  const pem = `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`
+  try {
+    return createPrivateKey(pem).export({ format: 'pem', type: 'pkcs8' }).toString().trim()
+  } catch {
+    return ''
+  }
+}
+
+function pemFromDer(der) {
+  if (!der.length || der[0] !== 0x30) return ''
+  try {
+    return createPrivateKey({ key: der, format: 'der', type: 'pkcs8' })
+      .export({ format: 'pem', type: 'pkcs8' })
+      .toString()
+      .trim()
+  } catch {
+    return ''
+  }
+}
+
+function normalizeP8(value) {
+  const directPem = normalizePem(value)
+  if (directPem) return directPem
+
+  let decoded
+  try {
+    decoded = decodeBase64(value, 'APPLE_API_KEY_P8_BASE64 in Repository secret KEY')
+  } catch {
+    throw new Error(
+      'APPLE_API_KEY_P8_BASE64 in Repository secret KEY is neither valid Base64/Base64URL nor a complete PEM private key',
+    )
+  }
+
+  const decodedText = decoded.toString('utf8').trim()
+  const decodedPem = normalizePem(decodedText)
+  if (decodedPem) return decodedPem
+
+  const derPem = pemFromDer(decoded)
+  if (derPem) return derPem
+
+  // Some secret managers export the PEM body as Base64 text, resulting in one
+  // additional encoding layer. Accept that representation without weakening
+  // the later complete-PEM validation.
+  const nestedCompact = compactBase64(decodedText)
+  if (nestedCompact) {
+    const nestedDer = Buffer.from(nestedCompact, 'base64')
+    const nestedPem = pemFromDer(nestedDer)
+    if (nestedPem) return nestedPem
+  }
+
+  throw new Error(
+    'APPLE_API_KEY_P8_BASE64 in Repository secret KEY did not decode to a PEM or PKCS#8 private key',
+  )
 }
 
 function parseKeyBundle(rawValue) {
@@ -45,18 +150,9 @@ export function resolveSigningCredentials(env = process.env) {
     clean(env[field]) || clean(bundle[field]),
   ]))
   if (!credentials.APPLE_API_KEY_P8 && clean(bundle.APPLE_API_KEY_P8_BASE64)) {
-    const bundledP8 = clean(bundle.APPLE_API_KEY_P8_BASE64).replaceAll('\\n', '\n')
-    if (bundledP8.includes('-----BEGIN PRIVATE KEY-----')) {
-      credentials.APPLE_API_KEY_P8 = bundledP8
-    } else {
-      const compactP8 = bundledP8.replace(/\s+/g, '')
-      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compactP8)) {
-        throw new Error(
-          'APPLE_API_KEY_P8_BASE64 in Repository secret KEY is neither valid Base64 nor a complete PEM private key',
-        )
-      }
-      credentials.APPLE_API_KEY_P8 = Buffer.from(compactP8, 'base64').toString('utf8').trim()
-    }
+    credentials.APPLE_API_KEY_P8 = normalizeP8(bundle.APPLE_API_KEY_P8_BASE64)
+  } else if (credentials.APPLE_API_KEY_P8) {
+    credentials.APPLE_API_KEY_P8 = normalizePem(credentials.APPLE_API_KEY_P8) || credentials.APPLE_API_KEY_P8
   }
   const missing = REQUIRED_FIELDS.filter(field => !credentials[field])
   if (missing.length > 0) {
@@ -67,11 +163,7 @@ export function resolveSigningCredentials(env = process.env) {
     )
   }
 
-  const compactCertificate = credentials.MAC_CERTIFICATE_BASE64.replace(/\s+/g, '')
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compactCertificate)) {
-    throw new Error('MAC_CERTIFICATE_BASE64 is not valid Base64')
-  }
-  const certificate = Buffer.from(compactCertificate, 'base64')
+  const certificate = decodeBase64(credentials.MAC_CERTIFICATE_BASE64, 'MAC_CERTIFICATE_BASE64')
   if (certificate.length < 64) {
     throw new Error('MAC_CERTIFICATE_BASE64 did not decode to a usable PKCS#12 certificate')
   }
