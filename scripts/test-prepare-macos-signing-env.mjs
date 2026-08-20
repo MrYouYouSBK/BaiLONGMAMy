@@ -31,6 +31,15 @@ const p8Base64Bundle = resolveSigningCredentials({
 })
 assert.equal(p8Base64Bundle.APPLE_API_KEY_P8, fields.APPLE_API_KEY_P8)
 
+const rawP8InBase64Field = resolveSigningCredentials({
+  GAI_MAC_SIGNING_KEY_BUNDLE: JSON.stringify({
+    ...fields,
+    APPLE_API_KEY_P8: undefined,
+    APPLE_API_KEY_P8_BASE64: fields.APPLE_API_KEY_P8.replaceAll('\n', '\\n'),
+  }),
+})
+assert.equal(rawP8InBase64Field.APPLE_API_KEY_P8, fields.APPLE_API_KEY_P8)
+
 const explicitWins = resolveSigningCredentials({
   ...fields,
   MAC_CERTIFICATE_PASSWORD: 'individual-secret-password',
