@@ -45,11 +45,18 @@ export function resolveSigningCredentials(env = process.env) {
     clean(env[field]) || clean(bundle[field]),
   ]))
   if (!credentials.APPLE_API_KEY_P8 && clean(bundle.APPLE_API_KEY_P8_BASE64)) {
-    const compactP8 = clean(bundle.APPLE_API_KEY_P8_BASE64).replace(/\s+/g, '')
-    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compactP8)) {
-      throw new Error('APPLE_API_KEY_P8_BASE64 in Repository secret KEY is not valid Base64')
+    const bundledP8 = clean(bundle.APPLE_API_KEY_P8_BASE64).replaceAll('\\n', '\n')
+    if (bundledP8.includes('-----BEGIN PRIVATE KEY-----')) {
+      credentials.APPLE_API_KEY_P8 = bundledP8
+    } else {
+      const compactP8 = bundledP8.replace(/\s+/g, '')
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compactP8)) {
+        throw new Error(
+          'APPLE_API_KEY_P8_BASE64 in Repository secret KEY is neither valid Base64 nor a complete PEM private key',
+        )
+      }
+      credentials.APPLE_API_KEY_P8 = Buffer.from(compactP8, 'base64').toString('utf8').trim()
     }
-    credentials.APPLE_API_KEY_P8 = Buffer.from(compactP8, 'base64').toString('utf8').trim()
   }
   const missing = REQUIRED_FIELDS.filter(field => !credentials[field])
   if (missing.length > 0) {
