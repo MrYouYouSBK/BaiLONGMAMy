@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { generateKeyPairSync } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,10 +9,12 @@ import {
 } from './prepare-macos-signing-env.mjs'
 
 const certificateBytes = Buffer.from('PKCS12 test certificate bytes '.repeat(4))
+const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+const testP8 = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString().trim()
 const fields = {
   MAC_CERTIFICATE_BASE64: certificateBytes.toString('base64'),
   MAC_CERTIFICATE_PASSWORD: 'test-password',
-  APPLE_API_KEY_P8: '-----BEGIN PRIVATE KEY-----\ntest-private-key\n-----END PRIVATE KEY-----',
+  APPLE_API_KEY_P8: testP8,
   APPLE_API_KEY_ID: 'ABC123DEFG',
   APPLE_API_ISSUER_ID: '11111111-2222-3333-4444-555555555555',
 }
@@ -39,6 +42,35 @@ const rawP8InBase64Field = resolveSigningCredentials({
   }),
 })
 assert.equal(rawP8InBase64Field.APPLE_API_KEY_P8, fields.APPLE_API_KEY_P8)
+
+const p8Base64Url = Buffer.from(fields.APPLE_API_KEY_P8)
+  .toString('base64')
+  .replaceAll('+', '-')
+  .replaceAll('/', '_')
+  .replace(/=+$/, '')
+const base64UrlBundle = resolveSigningCredentials({
+  GAI_MAC_SIGNING_KEY_BUNDLE: JSON.stringify({
+    ...fields,
+    MAC_CERTIFICATE_BASE64: certificateBytes.toString('base64url'),
+    APPLE_API_KEY_P8: undefined,
+    APPLE_API_KEY_P8_BASE64: `data:application/octet-stream;base64,${p8Base64Url}`,
+  }),
+})
+assert.equal(base64UrlBundle.APPLE_API_KEY_P8, fields.APPLE_API_KEY_P8)
+assert.deepEqual(base64UrlBundle.certificate, certificateBytes)
+
+const p8Body = fields.APPLE_API_KEY_P8
+  .replace('-----BEGIN PRIVATE KEY-----', '')
+  .replace('-----END PRIVATE KEY-----', '')
+  .replace(/\s+/g, '')
+const bodyOnlyBundle = resolveSigningCredentials({
+  GAI_MAC_SIGNING_KEY_BUNDLE: JSON.stringify({
+    ...fields,
+    APPLE_API_KEY_P8: undefined,
+    APPLE_API_KEY_P8_BASE64: p8Body,
+  }),
+})
+assert.equal(bodyOnlyBundle.APPLE_API_KEY_P8, fields.APPLE_API_KEY_P8)
 
 const explicitWins = resolveSigningCredentials({
   ...fields,
