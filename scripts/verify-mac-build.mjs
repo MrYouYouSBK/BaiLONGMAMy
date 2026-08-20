@@ -35,6 +35,29 @@ function assertMachine(filePath, label) {
   console.log(`[verify:mac] ${label}: ${description}`)
 }
 
+function waitForExit(process, timeoutMs) {
+  if (!process || process.exitCode !== null) return Promise.resolve(true)
+  return new Promise(resolve => {
+    let timer
+    const finish = exited => {
+      clearTimeout(timer)
+      process.off('exit', onExit)
+      resolve(exited)
+    }
+    const onExit = () => finish(true)
+    process.once('exit', onExit)
+    timer = setTimeout(() => finish(process.exitCode !== null), timeoutMs)
+  })
+}
+
+async function stopChild(process) {
+  if (!process || process.exitCode !== null) return
+  process.kill('SIGTERM')
+  if (await waitForExit(process, 5000)) return
+  process.kill('SIGKILL')
+  await waitForExit(process, 5000)
+}
+
 function assertTrustedApp(appRoot) {
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appRoot])
   const details = spawnSync('/usr/bin/codesign', ['-dvvv', appRoot], { encoding: 'utf8' })
@@ -80,6 +103,7 @@ if (requireTrustedDistribution) run('/usr/bin/xcrun', ['stapler', 'validate', dm
 const mountDir = mkdtempSync(join(tmpdir(), `gai-ai-${requestedArch}-`))
 let mounted = false
 let child
+let smokeRoot
 
 try {
   run('hdiutil', ['attach', dmgPath, '-nobrowse', '-readonly', '-mountpoint', mountDir])
@@ -100,7 +124,7 @@ try {
   if (requireTrustedDistribution) assertTrustedApp(appRoot)
   else console.log('[verify:mac] unsigned PR smoke mode; release publishing is disabled for this artifact')
 
-  const smokeRoot = mkdtempSync(join(tmpdir(), 'gai-ai-smoke-'))
+  smokeRoot = mkdtempSync(join(tmpdir(), 'gai-ai-smoke-'))
   child = spawn(executable, [], {
     env: {
       ...process.env,
@@ -126,10 +150,13 @@ try {
   }
 
   console.log('[verify:mac] packaged app remained alive for 15 seconds')
-  child.kill('SIGTERM')
-  rmSync(smokeRoot, { recursive: true, force: true })
+  await stopChild(child)
+  child = undefined
+  rmSync(smokeRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  smokeRoot = undefined
 } finally {
-  if (child && child.exitCode === null) child.kill('SIGKILL')
+  await stopChild(child)
+  if (smokeRoot) rmSync(smokeRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   if (mounted) spawnSync('hdiutil', ['detach', mountDir, '-force'], { stdio: 'ignore' })
-  rmSync(mountDir, { recursive: true, force: true })
+  rmSync(mountDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 }
